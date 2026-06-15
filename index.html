@@ -246,15 +246,25 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .pt{cursor:zoom-in}
 /* ── Utility ── */
 .hide{display:none!important}
-@media(max-width:600px){.fgrid{grid-template-columns:1fr}.fgrid .full{grid-column:1}.proj-meta-grid{grid-template-columns:1fr}.app-hdr{flex-wrap:wrap}.inline-plan-hdr{flex-direction:column;align-items:flex-start}
-.main{padding:16px 8px 80px}
-/* Visit screen: title row and actions row each take full width */
-#screen-visit .hdr-l{flex-basis:100%;flex-wrap:nowrap;min-width:0}
-#visit-hdr-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;max-width:none}
+@media(max-width:600px){.fgrid{grid-template-columns:1fr}.fgrid .full{grid-column:1}.proj-meta-grid{grid-template-columns:1fr}.inline-plan-hdr{flex-direction:column;align-items:flex-start}
+.main{padding:16px 8px 80px}}
+/* Portrait phones: compact single-row header */
+@media(orientation:portrait) and (max-width:600px){
+#screen-visit .app-hdr{flex-wrap:nowrap;padding:8px 10px;gap:5px}
+#screen-visit .hdr-l{flex:1;min-width:0;gap:5px}
+#screen-visit .back-btn{padding:5px 10px;font-size:11px}
+#visit-hdr-title{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:none}
 [contenteditable]#visit-hdr-title{max-width:none}
-#screen-visit .visit-hdr-actions{width:100%;gap:6px}
-#screen-visit .visit-hdr-actions .gen-btn{flex:1;min-width:0;font-size:11px;padding:7px 6px;gap:3px;justify-content:center;text-align:center}
-#screen-visit #sync-status-v{flex:1;min-width:0;font-size:10px;text-align:center;overflow:hidden;text-overflow:ellipsis}}
+#screen-visit .visit-hdr-actions{flex-shrink:0;gap:4px}
+#screen-visit #sync-status-v{font-size:9px;padding:3px 5px}
+#screen-visit .visit-hdr-actions .gen-btn{padding:5px 8px;font-size:10px;gap:2px}
+#screen-visit #manual-sync-btn{padding:5px 8px;font-size:10px}
+#screen-visit #dl-photos-label{display:none}}
+/* Landscape phones: two-row header */
+@media(orientation:landscape) and (max-width:960px){
+#screen-visit .app-hdr{flex-wrap:wrap;padding:8px 16px;gap:6px}
+#screen-visit .hdr-l{flex:1 0 100%;gap:8px}
+#screen-visit .visit-hdr-actions{width:100%;gap:8px}}
 </style>
 </head>
 <body>
