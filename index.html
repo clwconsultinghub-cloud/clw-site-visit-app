@@ -250,14 +250,17 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .main{padding:16px 8px 80px}}
 /* Portrait phones: title row + buttons row */
 @media(orientation:portrait) and (max-width:600px){
-#screen-visit .app-hdr{flex-wrap:wrap;padding:8px 10px;gap:6px}
+#screen-visit .app-hdr{flex-wrap:wrap;padding:8px 10px;gap:4px}
 #screen-visit .hdr-l{flex:1 0 100%;min-width:0;gap:8px}
 #visit-hdr-title{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:none}
 [contenteditable]#visit-hdr-title{max-width:none}
 #screen-visit .visit-hdr-actions{width:100%;gap:5px}
 #screen-visit #sync-status-v{flex:1;min-width:0;font-size:10px;text-align:center}
 #screen-visit .visit-hdr-actions .gen-btn{flex:1;min-width:0;font-size:10px;padding:6px 6px;gap:2px;justify-content:center}
-#screen-visit #manual-sync-btn{flex:0 0 auto;font-size:10px;padding:6px 8px}}
+#screen-visit #manual-sync-btn{flex:1;min-width:0;font-size:10px;padding:6px 6px;gap:2px;justify-content:center}
+#sync-hint{display:block}}
+/* Sync hint: shown below buttons in portrait when upload pending */
+#sync-hint{display:none;width:100%;text-align:center;font-size:10px;font-weight:700;color:rgba(255,255,255,.8);padding:1px 0 3px;letter-spacing:.1px}
 /* Landscape phones: two-row header */
 @media(orientation:landscape) and (max-width:960px){
 #screen-visit .app-hdr{flex-wrap:wrap;padding:8px 16px;gap:6px}
@@ -328,6 +331,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
       <button class="gen-btn" id="dl-photos-btn" onclick="handleSavePhotos()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);box-shadow:none"><span id="dl-photos-icon">⬇️</span> <span id="dl-photos-label">Save Photos</span></button>
       <button class="gen-btn" id="gen-btn" onclick="generateReport()"><span>📄</span> Generate Report</button>
     </div>
+    <div id="sync-hint"></div>
   </div>
   <div class="main">
 
@@ -34043,7 +34047,7 @@ function rPhotos(iss){
         <button class="pd" onclick="delPh(${iss.id},${ph.id})">✕ Remove</button>
       </div>
     </div>`).join('')}
-  ${pp.map(pin=>{const pinNum=pins.filter(p=>p.planId===pin.planId).indexOf(pin)+1;return`
+  ${pp.map(pin=>{const pinNum=pins.indexOf(pin)+1;return`
     <div class="pc2">
       <img class="pt" src="${pin.photo.du}" alt="" onclick="openLightbox(this.src)">
       <div class="pf">
@@ -34322,9 +34326,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         saveSt();renderAll();renderInlinePlan();toast('Pin moved ✓');
       } else {
         // Treat as a click — open edit panel
-        const planPins=pins.filter(p=>p.planId===_activePlanId);
-        const idx=planPins.indexOf(_draggingPin);
-        _openPinEdit(_draggingPin,idx+1);
+        _openPinEdit(_draggingPin,pins.indexOf(_draggingPin)+1);
       }
       _draggingPin=null;canvas.style.cursor='crosshair';
       return;
@@ -34369,7 +34371,7 @@ function _handleTap(cx,cy){
     const pin=planPins[i];
     const px=_panX+pin.x*_planImg.naturalWidth*_zoom;
     const py=_panY+pin.y*_planImg.naturalHeight*_zoom;
-    if(Math.hypot(cx-px,cy-py)<=20){_openPinEdit(pin,i+1);return;}
+    if(Math.hypot(cx-px,cy-py)<=20){_openPinEdit(pin,pins.indexOf(pin)+1);return;}
   }
   const x=(cx-_panX)/(_planImg.naturalWidth*_zoom);
   const y=(cy-_panY)/(_planImg.naturalHeight*_zoom);
@@ -34719,7 +34721,7 @@ function _renderPinLegend(planPins){
         <span class="legend-issue-title">${e(iss.title||'Untitled')}</span>
       </div>
       <div class="legend-pins">
-        ${issPins.map(p=>pinRow(p,planPins.indexOf(p)+1)).join('')}
+        ${issPins.map(p=>pinRow(p,pins.indexOf(p)+1)).join('')}
       </div>
     </div>`;
   });
@@ -34730,7 +34732,7 @@ function _renderPinLegend(planPins){
         <span class="legend-issue-badge" style="background:#282828">Unassigned</span>
       </div>
       <div class="legend-pins">
-        ${unassigned.map(p=>pinRow(p,planPins.indexOf(p)+1)).join('')}
+        ${unassigned.map(p=>pinRow(p,pins.indexOf(p)+1)).join('')}
       </div>
     </div>`;
   }
@@ -34743,7 +34745,7 @@ function _renderPlanPinPhotos(planPins){
   const el=document.getElementById('plan-pin-photos');if(!el)return;
   // Only show photo pins with no issue assigned (assigned ones appear in their issue card)
   const photoPins=planPins.filter(p=>p.type==='photo'&&p.photo?.du&&!p.issueId).map(p=>{
-    const idx=planPins.indexOf(p)+1;
+    const idx=pins.indexOf(p)+1;
     return`<div class="ppp-item" onclick="openPlanAndFocusPin(${p.id})" title="Click to assign to an issue">
       <img class="ppp-img" src="${p.photo.du}" alt="">
       <div class="ppp-lbl">P${idx}</div>
@@ -34924,8 +34926,7 @@ async function openPlanAndFocusPin(pinId){
   // Wait for the image to load before opening the edit panel
   const tryEdit=()=>{
     if(_planImg){
-      const planPins=pins.filter(p=>p.planId===pin.planId);
-      const pinNum=planPins.indexOf(pin)+1;
+      const pinNum=pins.indexOf(pin)+1;
       _openPinEdit(pin,pinNum);
     } else {
       setTimeout(tryEdit,100);
@@ -35097,8 +35098,7 @@ async function _gen(){
 
     // Pinned photos (with P# prefix in caption)
     issPins.forEach(pin=>{
-      const _planPinsForPin=pins.filter(p=>p.planId===pin.planId);
-      const _pinNum=_planPinsForPin.indexOf(pin)+1;
+      const _pinNum=pins.indexOf(pin)+1;
       const ph={...pin.photo,cap:`P${_pinNum}${pin.photo.cap?' — '+pin.photo.cap:''}`};
       addPhotoBlock(ph);
     });
@@ -35240,6 +35240,7 @@ let _syncRunning = false;
 // ── Sync status indicator ─────────────────────────────────────
 function clwSetSyncEl(state) {
   const el = document.getElementById('sync-status-v'); if (!el) return;
+  const hint = document.getElementById('sync-hint');
   const t = typeof _lastSaved !== 'undefined' && _lastSaved
     ? ' ' + _lastSaved.toLocaleTimeString('en-GB', {hour:'2-digit',minute:'2-digit'}) : '';
   const map = {
@@ -35248,13 +35249,15 @@ function clwSetSyncEl(state) {
     syncing: ['sync-saving', '☁ Syncing…'],
     cloud:   ['sync-saved',  '☁ Synced to Drive'],
     offline: ['sync-offline','○ Offline – saved locally'],
-    pending: ['sync-pending','☁ Tap Sync to upload'],
+    pending: ['sync-pending','● Pending'],
     error:   ['sync-offline','⚠ Sync error'],
   };
   const [cls, html] = map[state] || map.saved;
   el.className = 'sync-status ' + cls;
   el.innerHTML = html;
   el.style.cursor = ''; el.title = ''; el.onclick = null;
+  // Show upload hint below sync button in portrait mode when pending
+  if (hint) hint.textContent = state === 'pending' ? 'Tap Sync to upload' : '';
 }
 
 function clwShowSyncBtn(show) {
