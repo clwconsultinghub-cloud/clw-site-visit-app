@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CLW Site Visit App</title>
 <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
 :root{--clw-blue:#006CAA;--clw-blue-dk:#004f7d;--clw-blue-lt:#e6f2fa;--clw-grey:#DADADA;--clw-dark:#282828;--clw-mid:#555;--bg:#f5f7f9;--brd:#d0d7de;--r:8px;--sh:0 1px 4px rgba(0,0,0,.1)}
 *{box-sizing:border-box;margin:0;padding:0}
@@ -251,9 +252,9 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 #screen-visit .hdr-l{flex-basis:100%;flex-wrap:nowrap;min-width:0}
 #visit-hdr-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:13px;max-width:none}
 [contenteditable]#visit-hdr-title{max-width:none}
-#screen-visit .visit-hdr-actions{width:100%;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:2px;gap:6px}
-#screen-visit .gen-btn{flex:0 0 auto;font-size:11px;padding:7px 10px;gap:4px}
-#screen-visit #sync-status-v{font-size:10px;flex-shrink:0}}
+#screen-visit .visit-hdr-actions{width:100%;gap:6px}
+#screen-visit .visit-hdr-actions .gen-btn{flex:1;min-width:0;font-size:11px;padding:7px 6px;gap:3px;justify-content:center;text-align:center}
+#screen-visit #sync-status-v{flex:1;min-width:0;font-size:10px;text-align:center;overflow:hidden;text-overflow:ellipsis}}
 </style>
 </head>
 <body>
@@ -316,9 +317,8 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
     <div class="visit-hdr-actions">
       <div id="sync-status-v" class="sync-status sync-saved">● Saved</div>
       <button id="manual-sync-btn" class="gen-btn hide" onclick="clwManualSync()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);box-shadow:none"><span>☁</span> Sync</button>
-      <button class="gen-btn" onclick="openReviewScreen()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);box-shadow:none"><span>📷</span> Review Photos</button>
       <button class="gen-btn" id="dl-photos-btn" onclick="handleSavePhotos()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);box-shadow:none"><span id="dl-photos-icon">⬇️</span> <span id="dl-photos-label">Save Photos</span></button>
-      <button class="gen-btn" id="gen-btn" onclick="generateReport()"><span>📄</span> Generate Word Report</button>
+      <button class="gen-btn" id="gen-btn" onclick="generateReport()"><span>📄</span> Generate Report</button>
     </div>
   </div>
   <div class="main">
@@ -376,7 +376,10 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 
     <!-- Site Findings / Issues -->
     <div class="card" id="site-findings-section">
-      <div class="card-hdr">Site Findings</div>
+      <div class="card-hdr" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Site Findings</span>
+        <button onclick="openReviewScreen()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:white;padding:5px 12px;border-radius:16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">📷 Review Photos</button>
+      </div>
       <div class="card-body">
         <div class="issues-wrap" id="ilist"></div>
         <button class="add-iss" onclick="addIssue()">＋ Add Issue / Finding</button>
@@ -35441,7 +35444,7 @@ function openReviewScreen() {
   } else {
     grid.innerHTML = all.map(function(p) {
       return '<div style="background:white;border:1.5px solid var(--brd);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);display:flex;align-items:stretch">'
-        + '<img src="' + p.du + '" style="width:160px;min-width:160px;max-height:140px;object-fit:cover;border-right:1px solid var(--brd);flex-shrink:0" onerror="this.style.display=\'none\'">'
+        + '<img src="' + p.du + '" style="width:160px;min-width:160px;max-height:140px;object-fit:cover;border-right:1px solid var(--brd);flex-shrink:0;cursor:zoom-in" onclick="openLightbox(this.src)" onerror="this.style.display=\'none\'" title="Tap to expand">'
         + '<div style="flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0">'
         + '<span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--clw-blue)">' + e(p.label) + '</span>'
         + '<textarea placeholder="Add a caption…" rows="3" style="flex:1;border:1.5px solid var(--brd);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;color:var(--clw-dark);width:100%;min-height:70px;transition:border-color .15s" oninput="' + p.onchange + ';_rvProg()" onfocus="this.style.borderColor=\'var(--clw-blue)\'" onblur="this.style.borderColor=\'var(--brd)\'">' + e(p.cap) + '</textarea>'
