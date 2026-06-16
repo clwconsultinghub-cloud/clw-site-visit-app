@@ -35783,16 +35783,25 @@ async function clwFetchDriveList() {
   }
 
   listEl.innerHTML = Object.entries(byProject).map(([proj, pvs]) => {
-    const rows = pvs.sort((a,b) => b.date.localeCompare(a.date)).map(v =>
-      `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--brd)">
-        <div>
-          <div style="font-size:13px;font-weight:700;color:var(--clw-dark)">${e(v.date)}</div>
-          <div style="font-size:11px;color:var(--clw-mid)">Visit ID ${e(v.visitId)}</div>
+    const rows = pvs.map(v => {
+      const title    = v.subject    ? e(v.subject)    : (v.reportType ? e(v.reportType) : 'Site Visit');
+      const prepLine = v.preparedBy ? ' · ' + e(v.preparedBy) : '';
+      const counts   = [
+        v.findings ? v.findings + ' finding' + (v.findings !== 1 ? 's' : '') : '',
+        v.photos   ? v.photos   + ' photo'   + (v.photos   !== 1 ? 's' : '') : '',
+      ].filter(Boolean).join(' · ');
+      const synced   = v.syncedAt ? 'Synced ' + e(v.syncedAt) : e(v.date);
+      return `<div style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--brd)">
+        <div style="min-width:0;flex:1">
+          <div style="font-size:13px;font-weight:700;color:var(--clw-dark);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${title}</div>
+          <div style="font-size:11px;color:var(--clw-mid);margin-top:2px">${e(v.date)}${prepLine}</div>
+          ${counts ? `<div style="font-size:11px;color:var(--clw-blue);margin-top:1px;font-weight:700">${counts}</div>` : ''}
+          <div style="font-size:10px;color:#aaa;margin-top:1px">${synced}</div>
         </div>
-        <button class="btn-primary" style="font-size:12px;padding:7px 14px;white-space:nowrap"
+        <button class="btn-primary" style="font-size:12px;padding:7px 14px;white-space:nowrap;flex-shrink:0"
           onclick="clwImportVisit(_driveVisits[${v._idx}], this)">Import</button>
-      </div>`
-    ).join('');
+      </div>`;
+    }).join('');
     return `<div style="background:white;border:1.5px solid var(--brd);border-radius:var(--r);padding:12px 14px;box-shadow:var(--sh)">
       <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--clw-blue);margin-bottom:4px">${e(proj)}</div>
       ${rows}
@@ -35807,10 +35816,11 @@ async function clwImportVisit(meta, btn) {
 
   const folder = encodeURIComponent(CLW_GOOGLE.FOLDER_ID || '');
   const baseUrl = CLW_GOOGLE.SCRIPT_URL
-    + '?folder=' + folder
+    + '?folder='  + folder
     + '&project=' + encodeURIComponent(meta.project)
     + '&date='    + encodeURIComponent(meta.date)
-    + '&visitId=' + encodeURIComponent(meta.visitId);
+    + '&visitId=' + encodeURIComponent(meta.visitId)
+    + (meta.fileId ? '&fileId=' + encodeURIComponent(meta.fileId) : '');
 
   // 1. Fetch visit JSON
   let visitData;
