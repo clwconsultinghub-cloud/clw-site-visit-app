@@ -33828,8 +33828,27 @@ async function renderProjects(){
   }).join('');
 }
 
+let _editingProjectId = null; // null = new project, number = editing existing
+
 function newProject(){
+  _editingProjectId = null;
   ['mp-name','mp-client','mp-ref','mp-address'].forEach(id=>sv(id,''));
+  document.getElementById('modal-project').querySelector('.modal-hdr').textContent = 'New Project';
+  document.getElementById('modal-project').querySelector('.btn-primary').textContent = 'Create Project';
+  document.getElementById('modal-project').classList.remove('hide');
+  document.getElementById('modal-backdrop').classList.remove('hide');
+  setTimeout(()=>document.getElementById('mp-name').focus(),60);
+}
+async function editProject(id){
+  const proj = await dbGet('projects', id);
+  if (!proj) return;
+  _editingProjectId = id;
+  sv('mp-name',    proj.name    || '');
+  sv('mp-client',  proj.client  || '');
+  sv('mp-ref',     proj.clwRef  || '');
+  sv('mp-address', proj.address || '');
+  document.getElementById('modal-project').querySelector('.modal-hdr').textContent = 'Edit Project';
+  document.getElementById('modal-project').querySelector('.btn-primary').textContent = 'Save Changes';
   document.getElementById('modal-project').classList.remove('hide');
   document.getElementById('modal-backdrop').classList.remove('hide');
   setTimeout(()=>document.getElementById('mp-name').focus(),60);
@@ -33841,9 +33860,18 @@ function closeModal(){
 async function confirmNewProject(){
   const name=gv('mp-name').trim();
   if(!name){document.getElementById('mp-name').focus();return;}
-  const proj={name,client:gv('mp-client').trim(),clwRef:gv('mp-ref').trim(),address:gv('mp-address').trim(),createdAt:Date.now()};
-  const id=await dbPut('projects',proj);
-  closeModal();await openProject(id);
+  if (_editingProjectId) {
+    // Update existing project
+    const existing = await dbGet('projects', _editingProjectId);
+    await dbPut('projects', { ...existing, name, client:gv('mp-client').trim(), clwRef:gv('mp-ref').trim(), address:gv('mp-address').trim() });
+    closeModal();
+    await openProject(_editingProjectId);
+  } else {
+    // Create new project
+    const proj={name,client:gv('mp-client').trim(),clwRef:gv('mp-ref').trim(),address:gv('mp-address').trim(),createdAt:Date.now()};
+    const id=await dbPut('projects',proj);
+    closeModal();await openProject(id);
+  }
 }
 async function openProject(id){
   currentProjectId=id;
@@ -33853,6 +33881,9 @@ async function openProject(id){
     <div><span class="pmk">Client</span><span class="pmv">${e(proj.client||'—')}</span></div>
     <div><span class="pmk">CLW Ref</span><span class="pmv">${e(proj.clwRef||'—')}</span></div>
     <div><span class="pmk">Address</span><span class="pmv">${e(proj.address||'—')}</span></div>
+  </div>
+  <div style="margin-top:10px;text-align:right">
+    <button onclick="editProject(${id})" style="background:none;border:none;color:var(--clw-blue);font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;padding:0">✎ Edit project details</button>
   </div>`;
   await renderVisits(id);showScreen('project');
 }
@@ -33875,11 +33906,24 @@ async function renderVisits(projectId){
     const date=fmtD(v.f?.date||'');
     const ref=v.f?.ref||'';const wx=v.f?.wx||'';
     const iss=(v.issues||[]).length;const pn=(v.pins||[]).length;
+    // Sync status line
+    let syncLine='';
+    if(v.lastSyncedAt){
+      const d=new Date(v.lastSyncedAt);
+      const fmt=d.toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})
+               +' at '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
+      syncLine=`<div style="font-size:10px;color:#27a;margin-top:3px;font-weight:700">☁ Synced ${fmt}</div>`;
+    } else if(v.importedFromDrive){
+      syncLine=`<div style="font-size:10px;color:#27a;margin-top:3px;font-weight:700">☁ Loaded from Drive</div>`;
+    } else {
+      syncLine=`<div style="font-size:10px;color:#999;margin-top:3px">● Local only — not yet synced</div>`;
+    }
     return `<div class="visit-card" onclick="openVisit(${v.id})">
       <div class="vc-main">
         <div class="vc-date">${date||'Date not set'}</div>
         ${ref?`<div class="vc-ref">Ref: ${e(ref)}</div>`:''}
         ${wx?`<div class="vc-wx">🌤 ${e(wx)}</div>`:''}
+        ${syncLine}
       </div>
       <div class="vc-meta">
         <span class="vc-badge">${iss} finding${iss!==1?'s':''}</span>
@@ -35392,6 +35436,13 @@ async function clwSyncVisit(visitId) {
     pins:     (visit.pins||[]).length,
     syncedAt: new Date().toISOString(),
   }).catch(()=>{});
+
+  // Stamp the local visit record with the sync time so the visit card can show it
+  const syncedAt = new Date().toISOString();
+  try {
+    const latest = await dbGet('visits', visitId);
+    if (latest) await dbPut('visits', { ...latest, lastSyncedAt: syncedAt });
+  } catch(err) {}
 }
 
 // Online event no longer auto-syncs — just updates the status indicator
