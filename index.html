@@ -35918,22 +35918,49 @@ async function clwImportVisit(meta, btn) {
   // 4. Save visit record
   const newVisitId = await dbPut('visits', cleanVisit);
 
-  // 5. Fetch photos — awaited so button reflects true completion
-  btn.textContent = '📷 Fetching photos…';
+  // 5. Count total photos so the progress bar has a denominator
+  const totalPhotos = (cleanVisit.plans || []).length
+    + (cleanVisit.pins  || []).filter(p => p.type === 'photo').length
+    + (cleanVisit.issues|| []).reduce((s, iss) => s + (iss.photos||[]).length, 0);
+
+  // Inject a progress bar below the button
+  let progWrap = btn.parentElement.querySelector('.clw-prog-wrap');
+  if (!progWrap) {
+    progWrap = document.createElement('div');
+    progWrap.className = 'clw-prog-wrap';
+    progWrap.style.cssText = 'margin-top:8px;width:100%';
+    btn.parentElement.appendChild(progWrap);
+  }
+  const renderProg = (done, total) => {
+    const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    progWrap.innerHTML = `
+      <div style="font-size:11px;color:var(--clw-mid);margin-bottom:4px;text-align:center">
+        📷 ${done} / ${total} photos
+      </div>
+      <div style="background:#e0e8f0;border-radius:20px;height:6px;overflow:hidden">
+        <div style="background:var(--clw-blue);height:100%;width:${pct}%;transition:width .3s;border-radius:20px"></div>
+      </div>`;
+  };
+
+  btn.textContent = '📷 Fetching…';
+  if (totalPhotos > 0) renderProg(0, totalPhotos);
+
   try {
-    await clwRefetchPhotos(meta, baseUrl, newVisitId);
+    await clwRefetchPhotos(baseUrl, newVisitId, renderProg);
     toast('✓ Visit imported with photos');
   } catch(err) {
     toast('Visit imported — some photos may be missing (' + err.message + ')', 5000);
   }
 
+  progWrap.remove();
   btn.disabled = false;
   btn.textContent = '✓ Done';
-  await renderProjects();
+  clwCloseDriveBrowser();
+  await openProject(project.id);
 }
 
 // ── Re-fetch photos from Drive and write to IndexedDB ────
-async function clwRefetchPhotos(meta, baseUrl, newVisitId) {
+async function clwRefetchPhotos(baseUrl, newVisitId, onProgress) {
   // Fetch one photo file as a data URL via Apps Script
   async function fetchPhoto(filename) {
     const url = baseUrl + '&action=getPhoto&filename=' + encodeURIComponent(filename);
@@ -35948,14 +35975,21 @@ async function clwRefetchPhotos(meta, baseUrl, newVisitId) {
   const v = await dbGet('visits', newVisitId);
   if (!v) return;
 
-  let saved = 0, failed = 0;
+  // Count total for progress reporting
+  const total = (v.plans||[]).length
+    + (v.pins||[]).filter(p => p.type==='photo').length
+    + (v.issues||[]).reduce((s, iss) => s + (iss.photos||[]).length, 0);
+  let done = 0, failed = 0;
+
+  const tick = () => { done++; if (onProgress) onProgress(done, total); };
 
   // Plan images — stored separately in planImages store
   for (const pl of (v.plans || [])) {
     try {
       const du = await fetchPhoto('plan_' + pl.id + '.jpg');
-      if (du) { await dbPut('planImages', { key: 'v' + newVisitId + '_p' + pl.id, du }); saved++; }
+      if (du) { await dbPut('planImages', { key: 'v' + newVisitId + '_p' + pl.id, du }); }
     } catch(err) { console.warn('Plan photo failed:', err.message); failed++; }
+    tick();
   }
 
   // Pinned photos (P1, P2… matching sync order) — stored in visit record
@@ -35964,8 +35998,9 @@ async function clwRefetchPhotos(meta, baseUrl, newVisitId) {
     if (pin.type === 'photo') {
       try {
         const du = await fetchPhoto('pin_P' + pn + '.jpg');
-        if (du && pin.photo) { pin.photo.du = du; saved++; }
+        if (du && pin.photo) { pin.photo.du = du; }
       } catch(err) { console.warn('Pin photo P' + pn + ' failed:', err.message); failed++; }
+      tick();
       pn++;
     }
   }
@@ -35976,8 +36011,9 @@ async function clwRefetchPhotos(meta, baseUrl, newVisitId) {
     for (const ph of (iss.photos || [])) {
       try {
         const du = await fetchPhoto('finding_' + iss.id + '_photo_' + n + '.jpg');
-        if (du) { ph.du = du; saved++; }
+        if (du) { ph.du = du; }
       } catch(err) { console.warn('Issue photo failed:', err.message); failed++; }
+      tick();
       n++;
     }
   }
@@ -35985,7 +36021,7 @@ async function clwRefetchPhotos(meta, baseUrl, newVisitId) {
   // Save updated visit record (now contains pin + issue photo data)
   await dbPut('visits', v);
 
-  if (failed > 0) throw new Error(saved + ' photos loaded, ' + failed + ' failed — check console for details');
+  if (failed > 0) throw new Error((done - failed) + ' photos loaded, ' + failed + ' failed — check console for details');
 }
 </script>
 
