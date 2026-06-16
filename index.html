@@ -35857,74 +35857,74 @@ async function clwImportVisit(meta, btn) {
   // 4. Save visit record
   const newVisitId = await dbPut('visits', cleanVisit);
 
-  btn.textContent = '📷 Photos…';
-
-  // 5. Re-fetch photos in background (non-blocking)
-  clwRefetchPhotos(meta, baseUrl, newVisitId, cleanVisit).then(() => {
-    toast('✓ Visit imported — photos loaded');
-  }).catch(err => {
-    toast('Visit imported (some photos may be missing: ' + err.message + ')', 5000);
-  });
+  // 5. Fetch photos — awaited so button reflects true completion
+  btn.textContent = '📷 Fetching photos…';
+  try {
+    await clwRefetchPhotos(meta, baseUrl, newVisitId);
+    toast('✓ Visit imported with photos');
+  } catch(err) {
+    toast('Visit imported — some photos may be missing (' + err.message + ')', 5000);
+  }
 
   btn.disabled = false;
   btn.textContent = '✓ Done';
-  toast('Visit imported — fetching photos…');
   await renderProjects();
 }
 
 // ── Re-fetch photos from Drive and write to IndexedDB ────
-async function clwRefetchPhotos(meta, baseUrl, newVisitId, visit) {
-  // Helper: fetch one photo file as data URL
+async function clwRefetchPhotos(meta, baseUrl, newVisitId) {
+  // Fetch one photo file as a data URL via Apps Script
   async function fetchPhoto(filename) {
     const url = baseUrl + '&action=getPhoto&filename=' + encodeURIComponent(filename);
     const resp = await fetch(url);
-    if (!resp.ok) return null;
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' for ' + filename);
     const json = await resp.json();
-    return json.data || null; // data URL
+    if (json.error) throw new Error(json.error);
+    return json.data || null;
   }
 
-  // Helper: persist updated visit record
-  async function persistVisit(v) {
-    await dbPut('visits', v);
-  }
-
-  // Load current visit from DB (will be modified in place)
-  let v = await dbGet('visits', newVisitId);
+  // Load visit from DB
+  const v = await dbGet('visits', newVisitId);
   if (!v) return;
 
-  // Plan images
+  let saved = 0, failed = 0;
+
+  // Plan images — stored separately in planImages store
   for (const pl of (v.plans || [])) {
     try {
       const du = await fetchPhoto('plan_' + pl.id + '.jpg');
-      if (du) await dbPut('planImages', { key: 'v' + newVisitId + '_p' + pl.id, du });
-    } catch(e) {}
+      if (du) { await dbPut('planImages', { key: 'v' + newVisitId + '_p' + pl.id, du }); saved++; }
+    } catch(err) { console.warn('Plan photo failed:', err.message); failed++; }
   }
 
-  // Pinned photos (P1, P2… in order)
+  // Pinned photos (P1, P2… matching sync order) — stored in visit record
   let pn = 1;
   for (const pin of (v.pins || [])) {
     if (pin.type === 'photo') {
       try {
         const du = await fetchPhoto('pin_P' + pn + '.jpg');
-        if (du && pin.photo) { pin.photo.du = du; }
-      } catch(e) {}
+        if (du && pin.photo) { pin.photo.du = du; saved++; }
+      } catch(err) { console.warn('Pin photo P' + pn + ' failed:', err.message); failed++; }
       pn++;
     }
   }
 
-  // Issue photos
+  // Issue photos — stored in visit record
   for (const iss of (v.issues || [])) {
     let n = 1;
     for (const ph of (iss.photos || [])) {
       try {
         const du = await fetchPhoto('finding_' + iss.id + '_photo_' + n + '.jpg');
-        if (du) ph.du = du;
-      } catch(e) {}
+        if (du) { ph.du = du; saved++; }
+      } catch(err) { console.warn('Issue photo failed:', err.message); failed++; }
       n++;
     }
   }
 
-  await persistVisit(v);
+  // Save updated visit record (now contains pin + issue photo data)
+  await dbPut('visits', v);
+
+  if (failed > 0) throw new Error(saved + ' photos loaded, ' + failed + ' failed — check console for details');
 }
 </script>
 
