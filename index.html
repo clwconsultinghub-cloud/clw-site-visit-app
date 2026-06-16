@@ -173,6 +173,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 @keyframes cropPulse{0%,100%{opacity:1}50%{opacity:.7}}
 .reset-crop-btn{background:white;color:var(--clw-mid);border:1.5px solid var(--brd);padding:6px 14px;border-radius:16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;transition:all .15s}
 .reset-crop-btn:hover{border-color:var(--clw-blue);color:var(--clw-blue)}
+.tap-plan-hint{font-size:11px;font-weight:700;color:var(--clw-mid);font-style:italic;flex:1;min-width:0}
 .inline-plan-canvas.crop-mode{cursor:crosshair}
 .inline-plan-hdr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .inline-plan-canvas{display:block;max-width:100%;height:auto}
@@ -254,10 +255,10 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 #screen-visit .hdr-l{flex:1 0 100%;min-width:0;gap:8px}
 #visit-hdr-title{font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:none}
 [contenteditable]#visit-hdr-title{max-width:none}
-#screen-visit .visit-hdr-actions{width:100%;gap:5px}
-#screen-visit #sync-status-v{flex:1;min-width:0;font-size:10px;text-align:center}
-#screen-visit .visit-hdr-actions .gen-btn{flex:1;min-width:0;font-size:10px;padding:6px 6px;gap:2px;justify-content:center}
-#screen-visit #manual-sync-btn{flex:1;min-width:0;font-size:10px;padding:6px 6px;gap:2px;justify-content:center}
+#screen-visit .visit-hdr-actions{width:100%;gap:4px}
+#screen-visit #sync-status-v{flex:0 0 auto;font-size:9px;text-align:center;padding:4px 7px}
+#screen-visit .visit-hdr-actions .gen-btn{flex:1;min-width:0;font-size:10px;padding:6px 5px;gap:2px;justify-content:center}
+#screen-visit #manual-sync-btn{flex:0 0 auto;font-size:10px;padding:6px 8px;gap:2px;justify-content:center}
 #sync-hint{display:block}}
 /* Sync hint: shown below buttons in portrait when upload pending */
 #sync-hint{display:none;width:100%;text-align:center;font-size:10px;font-weight:700;color:rgba(255,255,255,.8);padding:1px 0 3px;letter-spacing:.1px}
@@ -413,11 +414,11 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
         <div id="inline-plan-section" class="inline-plan-wrap hide">
           <div class="inline-plan-hdr">
             <span id="inline-plan-name" class="inline-plan-name">Plan</span>
-            <button class="pin-edit-btn" onclick="openPlanOverlay(_activePlanId)">✎ Add / Edit Pins</button>
+            <span class="tap-plan-hint">Tap plan to add / edit pins</span>
             <button class="pin-edit-btn" id="crop-btn" onclick="startInlineCrop()">✂ Crop Layout</button>
             <button class="reset-crop-btn hide" id="reset-crop-btn" onclick="resetInlineCrop()">↺ Reset Layout</button>
           </div>
-          <canvas id="inline-plan-canvas" class="inline-plan-canvas"></canvas>
+          <canvas id="inline-plan-canvas" class="inline-plan-canvas" style="cursor:pointer" onclick="if(!_inlineCropMode)openPlanOverlay(_activePlanId)"></canvas>
           <div id="pin-legend" class="pin-legend"></div>
           <div id="plan-pin-photos" style="display:none"></div>
         </div>
@@ -34103,6 +34104,11 @@ function setupAS(){
 const PDF_JS_URL='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
 const PDF_WORKER='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
+function switchActivePlan(id){
+  _activePlanId=id;
+  renderPlansBar();renderInlinePlan();
+}
+
 async function renderPlansBar(){
   const bar=document.getElementById('plans-bar');if(!bar)return;
   bar.innerHTML='';
@@ -34117,7 +34123,7 @@ async function renderPlansBar(){
     const del=document.createElement('button');del.className='plan-del-btn';del.textContent='×';
     del.onclick=ev=>{ev.stopPropagation();removePlan(p.id);};
     btn.appendChild(img);btn.appendChild(nm);btn.appendChild(del);
-    btn.onclick=()=>openPlanOverlay(p.id);
+    btn.onclick=()=>switchActivePlan(p.id);
     bar.appendChild(btn);
   }
   // Update inline view if active plan changed
@@ -34222,10 +34228,10 @@ function _drawPlan(){
   ctx.drawImage(_planImg,0,0);
   ctx.restore();
   const planPins=pins.filter(p=>p.planId===_activePlanId);
-  planPins.forEach((pin,idx)=>{
+  planPins.forEach((pin)=>{
     const px=_panX+pin.x*_planImg.naturalWidth*_zoom;
     const py=_panY+pin.y*_planImg.naturalHeight*_zoom;
-    _drawPinMarker(ctx,px,py,idx+1,pin);
+    _drawPinMarker(ctx,px,py,pins.indexOf(pin)+1,pin);
   });
   if(_pendingPin){
     const px=_panX+_pendingPin.x*_planImg.naturalWidth*_zoom;
@@ -34659,19 +34665,19 @@ async function renderInlinePlan(){
       canvas.width=maxW;
       canvas.height=Math.round(maxW/aspect);
       ctx.drawImage(img,crop.x1*img.naturalWidth,crop.y1*img.naturalHeight,sw,sh,0,0,canvas.width,canvas.height);
-      planPins.forEach((pin,idx)=>{
+      planPins.forEach((pin)=>{
         const px=(pin.x-crop.x1)/(crop.x2-crop.x1)*canvas.width;
         const py=(pin.y-crop.y1)/(crop.y2-crop.y1)*canvas.height;
         if(px>-20&&px<canvas.width+20&&py>-20&&py<canvas.height+20)
-          _drawInlinePin(ctx,px,py,idx+1,pin);
+          _drawInlinePin(ctx,px,py,pins.indexOf(pin)+1,pin);
       });
     } else {
       const scale=Math.min(1,maxW/img.naturalWidth);
       canvas.width=img.naturalWidth*scale;
       canvas.height=img.naturalHeight*scale;
       ctx.drawImage(img,0,0,canvas.width,canvas.height);
-      planPins.forEach((pin,idx)=>{
-        _drawInlinePin(ctx,pin.x*canvas.width,pin.y*canvas.height,idx+1,pin);
+      planPins.forEach((pin)=>{
+        _drawInlinePin(ctx,pin.x*canvas.width,pin.y*canvas.height,pins.indexOf(pin)+1,pin);
       });
     }
     _renderPinLegend(planPins);
@@ -34802,7 +34808,7 @@ function _drawInlineCropOverlay(canvas,start,current){
   }
   // Redraw pins
   const planPins=pins.filter(p=>p.planId===_activePlanId);
-  planPins.forEach((pin,idx)=>{
+  planPins.forEach((pin)=>{
     let px,py;
     if(crop){
       px=(pin.x-crop.x1)/(crop.x2-crop.x1)*canvas.width;
@@ -34811,7 +34817,7 @@ function _drawInlineCropOverlay(canvas,start,current){
       px=pin.x*canvas.width;py=pin.y*canvas.height;
     }
     if(px>-20&&px<canvas.width+20&&py>-20&&py<canvas.height+20)
-      _drawInlinePin(ctx,px,py,idx+1,pin);
+      _drawInlinePin(ctx,px,py,pins.indexOf(pin)+1,pin);
   });
   // Dark overlay outside selection
   const x=Math.min(start.x,current.x),y=Math.min(start.y,current.y);
