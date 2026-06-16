@@ -33967,6 +33967,7 @@ async function openVisit(id){
   const F=visit.f||{};
   sv('report-type-input',visit.reportType||'Site Progress Report');
   sv('f-subj',F.subj);
+  const proj=await dbGet('projects',visit.projectId);
   // Populate project dropdown and set readonly fields from the project record
   const allProjects=await dbGetAll('projects');
   allProjects.sort((a,b)=>(a.name||'').localeCompare(b.name||''));
@@ -33977,7 +33978,6 @@ async function openVisit(id){
   sv('f-appr',F.appr);sv('f-att',F.att);sv('ta-sum',F.sum);sv('ta-gen',F.gen);sv('ta-conc',F.conc);
   const cb=document.getElementById('conc-toggle');
   if(cb){cb.checked=!visit.concIncluded;toggleConc();}
-  const proj=await dbGet('projects',visit.projectId);
   const autoTitle=(proj?.name||'Project')+' — '+(fmtD(F.date)||'New Visit');
   document.getElementById('visit-hdr-title').textContent=visit.visitTitle||autoTitle;
   renderAll();renderPlansBar();renderInlinePlan();
