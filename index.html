@@ -34308,28 +34308,47 @@ function _fitPlan(){
   const wrap=document.getElementById('plan-canvas-wrap');
   const canvas=document.getElementById('plan-canvas');
   const w=wrap.clientWidth,h=wrap.clientHeight;
-  _zoom=Math.min(w/_planImg.naturalWidth,h/_planImg.naturalHeight)*0.95;
-  _panX=(w-_planImg.naturalWidth*_zoom)/2;
-  _panY=(h-_planImg.naturalHeight*_zoom)/2;
+  const crop=_planCrops[_activePlanId];
+  const imgW=crop?(crop.x2-crop.x1)*_planImg.naturalWidth:_planImg.naturalWidth;
+  const imgH=crop?(crop.y2-crop.y1)*_planImg.naturalHeight:_planImg.naturalHeight;
+  _zoom=Math.min(w/imgW,h/imgH)*0.95;
+  _panX=(w-imgW*_zoom)/2;
+  _panY=(h-imgH*_zoom)/2;
   canvas.width=w;canvas.height=h;
 }
+
+// ── Crop-aware coordinate helpers for plan overlay ──────────────────────────
+// Convert pin fraction (full-image) → overlay user-space x/y (pixels before zoom)
+function _overlayPinX(pinX){const c=_planCrops[_activePlanId];return c?(pinX-c.x1)*_planImg.naturalWidth:pinX*_planImg.naturalWidth;}
+function _overlayPinY(pinY){const c=_planCrops[_activePlanId];return c?(pinY-c.y1)*_planImg.naturalHeight:pinY*_planImg.naturalHeight;}
+// Convert canvas coords → pin fraction (full-image), accounting for crop
+function _canvasToPin(cx,cy){const c=_planCrops[_activePlanId];return{x:(cx-_panX)/(_planImg.naturalWidth*_zoom)+(c?c.x1:0),y:(cy-_panY)/(_planImg.naturalHeight*_zoom)+(c?c.y1:0)};}
+// Check if a pin fraction coord falls within the valid (cropped) area
+function _inPlanBounds(x,y){const c=_planCrops[_activePlanId];const xMin=c?c.x1:0,xMax=c?c.x2:1,yMin=c?c.y1:0,yMax=c?c.y2:1;return x>=xMin&&x<=xMax&&y>=yMin&&y<=yMax;}
 
 function _drawPlan(){
   const canvas=document.getElementById('plan-canvas');if(!canvas||!_planImg)return;
   const ctx=canvas.getContext('2d');
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.save();ctx.translate(_panX,_panY);ctx.scale(_zoom,_zoom);
-  ctx.drawImage(_planImg,0,0);
+  const crop=_planCrops[_activePlanId];
+  if(crop){
+    const sx=crop.x1*_planImg.naturalWidth,sy=crop.y1*_planImg.naturalHeight;
+    const sw=(crop.x2-crop.x1)*_planImg.naturalWidth,sh=(crop.y2-crop.y1)*_planImg.naturalHeight;
+    ctx.drawImage(_planImg,sx,sy,sw,sh,0,0,sw,sh);
+  }else{
+    ctx.drawImage(_planImg,0,0);
+  }
   ctx.restore();
   const planPins=pins.filter(p=>p.planId===_activePlanId);
   planPins.forEach((pin)=>{
-    const px=_panX+pin.x*_planImg.naturalWidth*_zoom;
-    const py=_panY+pin.y*_planImg.naturalHeight*_zoom;
+    const px=_panX+_overlayPinX(pin.x)*_zoom;
+    const py=_panY+_overlayPinY(pin.y)*_zoom;
     _drawPinMarker(ctx,px,py,pins.indexOf(pin)+1,pin);
   });
   if(_pendingPin){
-    const px=_panX+_pendingPin.x*_planImg.naturalWidth*_zoom;
-    const py=_panY+_pendingPin.y*_planImg.naturalHeight*_zoom;
+    const px=_panX+_overlayPinX(_pendingPin.x)*_zoom;
+    const py=_panY+_overlayPinY(_pendingPin.y)*_zoom;
     _drawPinMarker(ctx,px,py,'?',null,'#f59e0b');
   }
 }
@@ -34358,8 +34377,8 @@ document.addEventListener('DOMContentLoaded',()=>{
       const planPins=pins.filter(p=>p.planId===_activePlanId);
       for(let i=0;i<planPins.length;i++){
         const p=planPins[i];
-        const px=_panX+p.x*_planImg.naturalWidth*_zoom;
-        const py=_panY+p.y*_planImg.naturalHeight*_zoom;
+        const px=_panX+_overlayPinX(p.x)*_zoom;
+        const py=_panY+_overlayPinY(p.y)*_zoom;
         if(Math.hypot(ev.offsetX-px,ev.offsetY-py)<=20){
           _draggingPin=p;_moved=false;_isDragging=false;
           canvas.style.cursor='grabbing';
@@ -34376,8 +34395,9 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(_draggingPin&&_planImg){
       _moved=true;
       if(_tip)_tip.style.display='none';
-      _draggingPin.x=Math.max(0,Math.min(1,(ev.offsetX-_panX)/(_planImg.naturalWidth*_zoom)));
-      _draggingPin.y=Math.max(0,Math.min(1,(ev.offsetY-_panY)/(_planImg.naturalHeight*_zoom)));
+      const _dp=_canvasToPin(ev.offsetX,ev.offsetY);const _dc=_planCrops[_activePlanId];
+      _draggingPin.x=Math.max(_dc?_dc.x1:0,Math.min(_dc?_dc.x2:1,_dp.x));
+      _draggingPin.y=Math.max(_dc?_dc.y1:0,Math.min(_dc?_dc.y2:1,_dp.y));
       _drawPlan();
       return;
     }
@@ -34395,8 +34415,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     let overPin=null;
     for(let i=0;i<planPins.length;i++){
       const p=planPins[i];
-      const px=_panX+p.x*_planImg.naturalWidth*_zoom;
-      const py=_panY+p.y*_planImg.naturalHeight*_zoom;
+      const px=_panX+_overlayPinX(p.x)*_zoom;
+      const py=_panY+_overlayPinY(p.y)*_zoom;
       if(Math.hypot(ev.offsetX-px,ev.offsetY-py)<=20){overPin=p;break;}
     }
     if(overPin){
@@ -34469,13 +34489,12 @@ function _handleTap(cx,cy){
   const planPins=pins.filter(p=>p.planId===_activePlanId);
   for(let i=0;i<planPins.length;i++){
     const pin=planPins[i];
-    const px=_panX+pin.x*_planImg.naturalWidth*_zoom;
-    const py=_panY+pin.y*_planImg.naturalHeight*_zoom;
+    const px=_panX+_overlayPinX(pin.x)*_zoom;
+    const py=_panY+_overlayPinY(pin.y)*_zoom;
     if(Math.hypot(cx-px,cy-py)<=20){_openPinEdit(pin,pins.indexOf(pin)+1);return;}
   }
-  const x=(cx-_panX)/(_planImg.naturalWidth*_zoom);
-  const y=(cy-_panY)/(_planImg.naturalHeight*_zoom);
-  if(x<0||x>1||y<0||y>1)return;
+  const {x,y}=_canvasToPin(cx,cy);
+  if(!_inPlanBounds(x,y))return;
   // ── Retropin mode: place a drag-drop photo directly as a pin ──
   if(_retroPin){
     const ph=_retroPin.photo;const issId=_retroPin.issueId;
