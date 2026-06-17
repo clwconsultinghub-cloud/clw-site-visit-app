@@ -246,6 +246,19 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .rb.on{display:flex}
 .rd{width:9px;height:9px;border-radius:50%;background:white;animation:blink .9s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
+/* ── Issue drag-reorder ── */
+.iss-drag-handle{cursor:grab;color:#bbb;font-size:20px;padding:0 4px 0 0;user-select:none;flex-shrink:0;line-height:1;transition:color .12s}
+.iss-drag-handle:hover{color:var(--clw-mid)}
+.iss-drag-handle:active{cursor:grabbing}
+.iss-move-btns{display:flex;flex-direction:column;gap:0;opacity:0;transition:opacity .15s;flex-shrink:0}
+.issue-hd:hover .iss-move-btns,.iss-move-btns:focus-within{opacity:1}
+@media(pointer:coarse){.iss-move-btns{opacity:1}}
+.iss-move-btn{background:none;border:none;cursor:pointer;color:var(--clw-mid);font-size:9px;padding:1px 4px;line-height:1.2;font-family:inherit;transition:color .12s}
+.iss-move-btn:hover{color:var(--clw-blue)}
+.iss-move-btn:disabled{opacity:.2;cursor:default}
+.issue-card.dragging{opacity:.35;border-color:var(--clw-blue)!important;box-shadow:none}
+.issue-card.drag-over-top{border-top:3px solid var(--clw-blue)!important}
+.issue-card.drag-over-bot{border-bottom:3px solid var(--clw-blue)!important}
 /* ── Lightbox ── */
 .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:2000;display:flex;align-items:center;justify-content:center;overflow:hidden;touch-action:none}
 .lightbox-img-wrap{position:relative;display:flex;align-items:center;justify-content:center;width:100%;height:100%;overflow:hidden}
@@ -253,6 +266,11 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .lightbox-close{position:fixed;top:16px;right:18px;color:white;font-size:28px;font-weight:800;cursor:pointer;line-height:1;opacity:.8;transition:opacity .15s;z-index:2001}
 .lightbox-close:hover{opacity:1}
 .lightbox-hint{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.55);font-size:12px;font-weight:700;pointer-events:none;white-space:nowrap}
+.lb-arrow{position:fixed;top:50%;transform:translateY(-50%);background:rgba(255,255,255,.12);color:white;border:none;font-size:44px;line-height:1;width:54px;height:88px;cursor:pointer;z-index:2002;border-radius:10px;transition:background .15s;user-select:none;display:flex;align-items:center;justify-content:center;font-family:Arial,sans-serif}
+.lb-arrow:hover{background:rgba(255,255,255,.28)}
+.lb-prev{left:8px}
+.lb-next{right:8px}
+.lb-counter{position:fixed;bottom:44px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.65);font-size:12px;font-weight:700;pointer-events:none;z-index:2001;font-family:'Mulish',Arial,sans-serif;letter-spacing:.3px}
 .pt{cursor:zoom-in}
 /* ── Project-locked fields (read-only in visit form) ── */
 .proj-field-readonly{background:#f0f6fb!important;color:var(--clw-mid)!important;cursor:default!important;border-color:#c8dce9!important;font-style:italic}
@@ -547,14 +565,17 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 <!-- Hidden inputs -->
 <input type="file" id="plan-file-input" accept="image/*,.pdf,application/pdf" style="display:none" onchange="addPlanFromFile(this.files[0]);this.value=''">
 <input type="file" id="pin-photo-input" accept="image/*" capture="environment" style="display:none" onchange="onPinPhotoSelected(event)">
-<input type="file" id="pin-photo-input-add" accept="image/*" style="display:none" onchange="onPinPhotoSelected(event)">
+<input type="file" id="pin-photo-input-add" accept="image/*" multiple style="display:none" onchange="onPinPhotoSelected(event)">
 <div class="toast" id="toast"></div>
 <div class="lightbox" id="lightbox" style="display:none">
   <span class="lightbox-close" onclick="closeLightbox()">✕</span>
+  <button class="lb-arrow lb-prev" id="lb-prev" onclick="lbPrev()" title="Previous (←)">&#8249;</button>
   <div class="lightbox-img-wrap" id="lightbox-wrap">
     <img id="lightbox-img" src="" alt="" draggable="false">
   </div>
+  <button class="lb-arrow lb-next" id="lb-next" onclick="lbNext()" title="Next (→)">&#8250;</button>
   <div class="lightbox-hint" id="lightbox-hint">Scroll or pinch to zoom · Drag to pan · Double-tap to reset</div>
+  <div class="lb-counter" id="lb-counter" style="display:none"></div>
 </div>
 <div class="rb" id="rb"><span class="rd"></span> Recording…</div>
 
@@ -34111,12 +34132,78 @@ function delIssue(id){
   issues=issues.filter(i=>i.id!==id);renderAll();saveSt();
 }
 
+// ── Issue reorder ─────────────────────────────────────────────
+let _dragIssueId=null;
+
+function issMove(id,dir){
+  const idx=issues.findIndex(i=>i.id===id);
+  const ni=idx+dir;if(ni<0||ni>=issues.length)return;
+  [issues[idx],issues[ni]]=[issues[ni],issues[idx]];
+  renderAll();renderInlinePlan();saveSt();
+}
+
+function issDragStart(ev,id){
+  // Only allow drag when pointer is on the grab handle
+  const handle=ev.currentTarget.querySelector('.iss-drag-handle');
+  if(!handle||(!handle.contains(ev.target)&&ev.target!==handle)){ev.preventDefault();return;}
+  _dragIssueId=id;
+  ev.dataTransfer.effectAllowed='move';
+  ev.dataTransfer.setData('text/plain',String(id));
+  setTimeout(()=>{
+    const c=document.querySelector(`.issue-card[data-id="${id}"]`);
+    if(c)c.classList.add('dragging');
+  },0);
+}
+
+function issDragOver(ev){
+  if(!_dragIssueId)return;
+  ev.preventDefault();ev.dataTransfer.dropEffect='move';
+  const card=ev.currentTarget;
+  document.querySelectorAll('.issue-card').forEach(c=>c.classList.remove('drag-over-top','drag-over-bot'));
+  const rect=card.getBoundingClientRect();
+  card.classList.add(ev.clientY<rect.top+rect.height/2?'drag-over-top':'drag-over-bot');
+}
+
+function issDragLeave(ev){
+  if(!ev.currentTarget.contains(ev.relatedTarget))
+    ev.currentTarget.classList.remove('drag-over-top','drag-over-bot');
+}
+
+function issDrop(ev,targetId){
+  ev.preventDefault();
+  document.querySelectorAll('.issue-card').forEach(c=>c.classList.remove('drag-over-top','drag-over-bot','dragging'));
+  if(!_dragIssueId||_dragIssueId===targetId){_dragIssueId=null;return;}
+  const fromIdx=issues.findIndex(i=>i.id===_dragIssueId);
+  const rect=ev.currentTarget.getBoundingClientRect();
+  let toIdx=issues.findIndex(i=>i.id===targetId);
+  if(ev.clientY>=rect.top+rect.height/2)toIdx++;
+  const[moved]=issues.splice(fromIdx,1);
+  issues.splice(toIdx>fromIdx?toIdx-1:toIdx,0,moved);
+  _dragIssueId=null;
+  renderAll();renderInlinePlan();saveSt();
+}
+
+function issDragEnd(){
+  _dragIssueId=null;
+  document.querySelectorAll('.issue-card').forEach(c=>c.classList.remove('drag-over-top','drag-over-bot','dragging'));
+}
+
 function renderAll(){
   const wrap=document.getElementById('ilist');if(!wrap)return;
   if(!issues.length){wrap.innerHTML='';return;}
   wrap.innerHTML=issues.map((iss,idx)=>`
-  <div class="issue-card" data-id="${iss.id}">
+  <div class="issue-card" data-id="${iss.id}" draggable="true"
+    ondragstart="issDragStart(event,${iss.id})"
+    ondragover="issDragOver(event)"
+    ondragleave="issDragLeave(event)"
+    ondrop="issDrop(event,${iss.id})"
+    ondragend="issDragEnd()">
     <div class="issue-hd">
+      <span class="iss-drag-handle" title="Drag to reorder">⠿</span>
+      <span class="iss-move-btns">
+        <button class="iss-move-btn" onclick="event.stopPropagation();issMove(${iss.id},-1)" title="Move up"${idx===0?' disabled':''}>▲</button>
+        <button class="iss-move-btn" onclick="event.stopPropagation();issMove(${iss.id},1)" title="Move down"${idx===issues.length-1?' disabled':''}>▼</button>
+      </span>
       <div class="issue-num">Issue ${idx+1}</div>
       <input class="issue-ti" placeholder="Finding title…" value="${e(iss.title)}" oninput="saveSt()">
       <button class="issue-del" onclick="delIssue(${iss.id})" title="Remove">×</button>
@@ -34147,22 +34234,25 @@ function rPhotos(iss){
   const pinnedPhotoIds=new Set(pins.filter(p=>p.sourcePhotoId!=null&&iss.photos.some(ph=>ph.id===p.sourcePhotoId)).map(p=>p.sourcePhotoId));
   const unpinnedPhotos=iss.photos.filter(ph=>!pinnedPhotoIds.has(ph.id));
   if(!unpinnedPhotos.length&&!pp.length)return'';
-  return`<div class="pg">${unpinnedPhotos.map(ph=>`
-    <div class="pc2">
-      <img class="pt" src="${ph.du}" alt="" onclick="openLightbox(this.src)">
+  let lbIdx=0; // tracks position in the full photo list for lightbox navigation
+  return`<div class="pg">${unpinnedPhotos.map(ph=>{
+    const i=lbIdx++;
+    return`<div class="pc2">
+      <img class="pt" src="${ph.du}" alt="" onclick="openIssueLightbox(${iss.id},${i})">
       <div class="pf">
         <input class="pci" value="${e(ph.cap)}" placeholder="Caption…" oninput="ph_c(${iss.id},${ph.id},this.value)">
         ${plans.length?`<button class="pd pd-pin" onclick="pinPhotoToMap(${iss.id},${ph.id})">📍 Pin to Plan</button>`:''}
         <button class="pd" onclick="delPh(${iss.id},${ph.id})">✕ Remove</button>
       </div>
-    </div>`).join('')}
+    </div>`;}).join('')}
   ${pp.map(pin=>{
     const pinNum=pins.indexOf(pin)+1;
     const phs=(pin.photos||[]).filter(ph=>ph.du);
     return phs.map((ph,pi)=>{
       const alpha=phs.length>1?String.fromCharCode(65+pi):'';
+      const i=lbIdx++;
       return`<div class="pc2">
-      <img class="pt" src="${ph.du}" alt="" onclick="openLightbox(this.src)">
+      <img class="pt" src="${ph.du}" alt="" onclick="openIssueLightbox(${iss.id},${i})">
       <div class="pf">
         <input class="pci" value="${e(ph.cap)}" placeholder="Caption…" oninput="updatePinPhotoCap(${pin.id},${pi},this.value)">
         <div class="sr"><span style="color:#282828;font-weight:700">📍 P${pinNum}${alpha}</span></div>
@@ -34170,6 +34260,17 @@ function rPhotos(iss){
       </div>
     </div>`;}).join('');}).join('')}
   </div>`;
+}
+
+function openIssueLightbox(issId,startIdx){
+  const iss=issues.find(i=>i.id===issId);if(!iss)return;
+  const pp=pins.filter(p=>p.issueId===iss.id&&p.type==='photo'&&p.photos?.some(ph=>ph.du));
+  const pinnedIds=new Set(pins.filter(p=>p.sourcePhotoId!=null&&iss.photos.some(ph=>ph.id===p.sourcePhotoId)).map(p=>p.sourcePhotoId));
+  const srcs=[
+    ...iss.photos.filter(ph=>!pinnedIds.has(ph.id)).map(ph=>ph.du),
+    ...pp.flatMap(pin=>(pin.photos||[]).filter(ph=>ph.du).map(ph=>ph.du))
+  ];
+  openLightbox(srcs,startIdx||0);
 }
 
 function addFs(iid,files){
@@ -34592,6 +34693,8 @@ function activatePinPhoto(mode){
   document.getElementById('pin-assign-panel').classList.add('hide');
   _drawPlan();renderInlinePlan();saveSt();
   window._lastPinId=pin.id;
+  // Hint will be refreshed by onPinPhotoSelected once photo lands; show interim message now
+  _showPlanReadyHint();
   _openPhotoInput(mode);
 }
 
@@ -34641,6 +34744,7 @@ function cancelPin(){
   _resetPanelToNewMode();
   document.getElementById('pin-assign-panel').classList.add('hide');
   _drawPlan();
+  _showPlanReadyHint();
 }
 
 function _resetPanelToNewMode(){
@@ -34738,7 +34842,7 @@ function confirmPinAssign(){
     window._lastPinId=pin.id;
     if(_pendingPhotoMode==='drop'){
       if(_droppedPhotoData){pin.photos.push(_droppedPhotoData);_droppedPhotoData=null;}
-      renderAll();renderInlinePlan();saveSt();toast('Photo pin added ✓');
+      renderAll();renderInlinePlan();saveSt();_showPlanReadyHint();toast('Photo pin added ✓');
     } else if(_pendingPhotoMode==='add'){
       document.getElementById('pin-photo-input-add').click();
     } else {
@@ -34750,27 +34854,48 @@ function confirmPinAssign(){
     }
   } else {
     renderAll();
+    _showPlanReadyHint();
     toast('Pin added ✓');
   }
 }
 
 function onPinPhotoSelected(evt){
-  const file=evt.target.files[0];if(!file)return;
+  const files=Array.from(evt.target.files||[]);if(!files.length)return;
   const pinId=window._lastPinId;
   const pin=pins.find(p=>p.id===pinId);if(!pin)return;
-  const rd=new FileReader();
-  rd.onload=ev=>{
-    const im=new Image();
-    im.onload=()=>{
-      let tp=file.type.split('/')[1];if(tp==='jpg')tp='jpeg';
-      if(!pin.photos)pin.photos=[];
-      pin.photos.push({du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight});
-      saveSt();renderAll();_drawPlan();renderInlinePlan();
-      _refreshPinGallery(pin);
-      toast('Photo added ✓');
-    };im.src=ev.target.result;
-  };rd.readAsDataURL(file);
+  if(!pin.photos)pin.photos=[];
+  let remaining=files.length;
+  files.forEach(file=>{
+    const rd=new FileReader();
+    rd.onload=ev=>{
+      const im=new Image();
+      im.onload=()=>{
+        let tp=file.type.split('/')[1];if(tp==='jpg')tp='jpeg';
+        pin.photos.push({du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight});
+        remaining--;
+        if(remaining===0){
+          saveSt();renderAll();_drawPlan();renderInlinePlan();
+          _refreshPinGallery(pin);
+          _showPlanReadyHint();
+          toast(files.length>1?`${files.length} photos added ✓`:'Photo added ✓');
+        }
+      };im.src=ev.target.result;
+    };rd.readAsDataURL(file);
+  });
   evt.target.value='';
+}
+
+// Show (or restore) the "tap to drop a pin" hint in the plan overlay
+function _showPlanReadyHint(){
+  const overlay=document.getElementById('plan-overlay');
+  if(!overlay||overlay.classList.contains('hide'))return;
+  const hint=document.getElementById('plan-hint');
+  if(hint&&!hint.classList.contains('retro')){
+    hint.textContent='📍 Tap on the plan to drop another pin';
+    hint.style.display='block';
+    // Revert to standard text after 4 s
+    setTimeout(()=>{if(hint.textContent.startsWith('📍 Tap on the plan to drop another'))hint.textContent='Tap on the plan to drop a pin';},4000);
+  }
 }
 
 // ── Pin photo gallery (edit panel) ───────────────────────────
@@ -35796,13 +35921,42 @@ function closeReviewScreen() { showScreen('visit'); }
     return{x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};
   }
 
-  window.openLightbox=function(src){
-    const lb=document.getElementById('lightbox');
+  // ── Lightbox gallery state ──
+  let _lbSrcs=[],_lbIdx=0;
+
+  function _lbSetImg(src){
     const img=document.getElementById('lightbox-img');
-    img.src=src; _scale=1;_tx=0;_ty=0;
-    img.style.transition='none';
-    img.style.transform='';
+    _scale=1;_tx=0;_ty=0;
+    img.style.transition='none';img.style.transform='';
+    img.src=src;
+  }
+  function _lbUpdateNav(){
+    const multi=_lbSrcs.length>1;
+    const prev=document.getElementById('lb-prev');
+    const next=document.getElementById('lb-next');
+    const ctr=document.getElementById('lb-counter');
+    if(prev)prev.style.display=multi?'flex':'none';
+    if(next)next.style.display=multi?'flex':'none';
+    if(ctr){ctr.style.display=multi?'block':'none';ctr.textContent=multi?`${_lbIdx+1} / ${_lbSrcs.length}`:'';}
+  }
+  window.lbPrev=function(){
+    if(_lbSrcs.length<2)return;
+    _lbIdx=(_lbIdx-1+_lbSrcs.length)%_lbSrcs.length;
+    _lbSetImg(_lbSrcs[_lbIdx]);_lbUpdateNav();
+  };
+  window.lbNext=function(){
+    if(_lbSrcs.length<2)return;
+    _lbIdx=(_lbIdx+1)%_lbSrcs.length;
+    _lbSetImg(_lbSrcs[_lbIdx]);_lbUpdateNav();
+  };
+
+  window.openLightbox=function(src_or_arr,idx){
+    if(Array.isArray(src_or_arr)){_lbSrcs=src_or_arr;_lbIdx=Math.max(0,Math.min(idx||0,src_or_arr.length-1));}
+    else{_lbSrcs=[src_or_arr];_lbIdx=0;}
+    const lb=document.getElementById('lightbox');
+    _lbSetImg(_lbSrcs[_lbIdx]);
     lb.style.display='flex';
+    _lbUpdateNav();
     document.addEventListener('keydown',_lbKey);
 
     // — Mouse wheel zoom —
@@ -35878,7 +36032,14 @@ function closeReviewScreen() { showScreen('visit'); }
         _clampPan(img);_apply(img,false);
       }
     };
-    lb._onTE=function(e){if(e.touches.length<2)_pinchDist=null;};
+    lb._onTE=function(e){
+      if(e.touches.length<2)_pinchDist=null;
+      // Horizontal swipe to navigate (single finger, not pinching, not zoomed)
+      if(e.changedTouches.length===1&&_pinchDist===null&&_scale<=1){
+        const dx=e.changedTouches[0].clientX-_lastX;
+        if(Math.abs(dx)>55){if(dx<0)lbNext();else lbPrev();}
+      }
+    };
     lb.addEventListener('touchstart',lb._onTS,{passive:false});
     lb.addEventListener('touchmove',lb._onTM,{passive:false});
     lb.addEventListener('touchend',lb._onTE);
@@ -35901,6 +36062,8 @@ function closeReviewScreen() { showScreen('visit'); }
 
   function _lbKey(e){
     if(e.key==='Escape')closeLightbox();
+    if(e.key==='ArrowLeft')lbPrev();
+    if(e.key==='ArrowRight')lbNext();
     if(e.key==='0'||e.key==='+'){
       const img=document.getElementById('lightbox-img');
       if(e.key==='0'){_reset(img,true);}
