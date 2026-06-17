@@ -33964,6 +33964,7 @@ async function renderVisits(projectId){
       <div class="vc-meta">
         <span class="vc-badge">${iss} finding${iss!==1?'s':''}</span>
         <span class="vc-badge">${pn} pin${pn!==1?'s':''}</span>
+        <button class="pc-del" onclick="event.stopPropagation();duplicateVisit(${v.id})" title="Duplicate site visit" style="font-size:13px">⧉</button>
         <button class="pc-del" onclick="event.stopPropagation();deleteVisit(${v.id})" title="Delete">✕</button>
       </div>
     </div>`;
@@ -34022,6 +34023,49 @@ async function openVisit(id){
 async function deleteVisit(id){
   if(!confirm('Delete this site visit? This cannot be undone.'))return;
   await _deleteVisitData(id);renderVisits(currentProjectId);
+}
+
+function _incrementRef(ref){
+  // Increments the trailing number in a ref string, e.g. "PR-002" → "PR-003"
+  if(!ref)return ref;
+  return ref.replace(/(\d+)$/, (m)=>String(parseInt(m,10)+1).padStart(m.length,'0'));
+}
+
+async function duplicateVisit(id){
+  const src=await dbGet('visits',id);
+  if(!src)return;
+  // Deep-copy issues keeping only title (strip desc and photos)
+  const newIssues=(src.issues||[]).map(iss=>({
+    id:iss.id,title:iss.title,desc:'',photos:[]
+  }));
+  // Copy plan metadata, but strip any per-photo pin data; keep plans list
+  const newPlans=(src.plans||[]).map(pl=>({...pl}));
+  // Increment report ref
+  const newRef=_incrementRef(src.f?.ref||'');
+  const newVisit={
+    projectId:src.projectId,
+    visitNumber:src.visitNumber,
+    reportType:src.reportType||'Site Progress Report',
+    concIncluded:src.concIncluded!==undefined?src.concIncluded:true,
+    iseq:src.iseq||0,pseq:src.pseq||0,planSeq:src.planSeq||0,pnseq:0,
+    issues:newIssues,
+    plans:newPlans,
+    pins:[],
+    f:{...src.f,ref:newRef},
+    updatedAt:Date.now()
+  };
+  const newId=await dbPut('visits',newVisit);
+  // Copy planImages for each plan
+  for(const pl of newPlans){
+    const srcKey=_planKey(id,pl.id);
+    const rec=await dbGet('planImages',srcKey);
+    if(rec){
+      const destKey=_planKey(newId,pl.id);
+      await dbPut('planImages',{key:destKey,du:rec.du});
+    }
+  }
+  await renderVisits(src.projectId);
+  showToast('Site visit duplicated');
 }
 
 async function reassignVisitProject(newProjectIdStr){
@@ -35552,10 +35596,20 @@ async function _gen(){
 
   // Signature
   children.push(new Paragraph({children:[],...sp(560,0)}));
-  children.push(new Paragraph({border:{top:{style:BorderStyle.SINGLE,size:4,color:GREY}},children:[],...sp(0,80)}));
-  ['Signed: ___________________________','',F.prep||'',
-   'Senior Waterproofing Design Consultant','CLW Consulting','Date: '+fmtD(F.date)].forEach((ln,i)=>{
-    children.push(new Paragraph({children:[new TextRun({text:ln,font:'Mulish',bold:i===0,size:22,color:DARK})],...sp(i===1?80:40,40)}));
+  // Two-column borderless table: left="Signed:", right=blank signature space
+  const sigLabelW=1200; const sigSpaceW=CDXA-sigLabelW;
+  children.push(new Table({
+    width:{size:CDXA,type:WidthType.DXA},
+    columnWidths:[sigLabelW,sigSpaceW],
+    borders:{top:bN,bottom:bN,left:bN,right:bN,insideH:bN,insideV:bN},
+    rows:[new TableRow({children:[
+      new TableCell({borders:{top:bN,bottom:bN,left:bN,right:bN},width:{size:sigLabelW,type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,margins:{top:80,bottom:80,left:0,right:80},children:[new Paragraph({children:[new TextRun({text:'Signed:',font:'Mulish',bold:true,size:22,color:DARK})]})]}) ,
+      new TableCell({borders:{top:bN,bottom:bN,left:bN,right:bN},width:{size:sigSpaceW,type:WidthType.DXA},verticalAlign:VerticalAlign.CENTER,margins:{top:80,bottom:80,left:80,right:0},children:[new Paragraph({children:[new TextRun({text:'',font:'Mulish',size:22,color:DARK})]})]}),
+    ]})]
+  }));
+  children.push(new Paragraph({children:[],...sp(80,0)}));
+  [F.prep||'','Senior Waterproofing Design Consultant','CLW Consulting','Date: '+fmtD(F.date)].forEach((ln)=>{
+    children.push(new Paragraph({children:[new TextRun({text:ln,font:'Mulish',size:22,color:DARK})],...sp(40,40)}));
   });
 
   // ── CLW Logo (embedded) ──
