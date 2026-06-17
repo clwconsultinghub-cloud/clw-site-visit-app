@@ -222,6 +222,11 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .pin-photo-opts{display:flex;gap:8px;margin-bottom:10px}
 .pin-photo-opt{flex:1;padding:7px 10px;border-radius:7px;border:1.5px solid var(--brd);background:white;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .15s;text-align:center}
 .pin-photo-opt.active{border-color:var(--clw-blue);background:rgba(0,108,170,.08);color:var(--clw-blue)}
+.pin-photo-gallery{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.ppg-item{position:relative;width:72px;height:60px;flex-shrink:0}
+.ppg-item img{width:100%;height:100%;object-fit:cover;border-radius:5px;border:1px solid var(--brd);cursor:zoom-in}
+.ppg-rm{position:absolute;top:-5px;right:-5px;background:#dc2626;color:white;border:none;border-radius:50%;width:16px;height:16px;font-size:9px;font-weight:800;cursor:pointer;line-height:16px;text-align:center;padding:0;z-index:1}
+.ppg-lbl{position:absolute;bottom:2px;left:2px;background:rgba(0,0,0,.55);color:white;font-size:9px;font-weight:700;padding:1px 4px;border-radius:3px;pointer-events:none}
 .pin-drop-zone{display:none;border:2px dashed var(--brd);border-radius:8px;padding:14px 10px;text-align:center;color:var(--clw-mid);font-size:12px;font-weight:600;cursor:default;transition:border-color .15s,background .15s;margin-bottom:10px;user-select:none}
 .pin-drop-zone.drag-over{border-color:var(--clw-blue);background:rgba(0,108,170,.07);color:var(--clw-blue)}
 .pin-drop-zone.has-photo{border-color:#16a34a;background:rgba(22,163,74,.06);color:#15803d}
@@ -479,6 +484,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
         <button class="pin-type-btn active" data-type="photo" onclick="setPinType('photo')">📷 Photo</button>
         <button class="pin-type-btn" data-type="note" onclick="setPinType('note')">✏️ Note</button>
       </div>
+      <div id="pin-photo-gallery" class="pin-photo-gallery" style="display:none"></div>
       <div id="pin-photo-opts" class="pin-photo-opts">
         <button class="pin-photo-opt active" data-pmode="take" onclick="activatePinPhoto('take')">📷 Take Photo</button>
         <button class="pin-photo-opt" data-pmode="add" onclick="activatePinPhoto('add')">🖼 Add Photo</button>
@@ -33964,6 +33970,8 @@ async function openVisit(id){
   issues=visit.issues||[];iseq=visit.iseq||0;pseq=visit.pseq||0;
   plans=visit.plans||[];planSeq=visit.planSeq||0;
   pins=visit.pins||[];pnseq=visit.pnseq||0;
+  // Migrate old single-photo pins to photos array
+  pins.forEach(pin=>{if(pin.photo!==undefined&&!pin.photos){pin.photos=pin.photo&&pin.photo.du?[pin.photo]:[];delete pin.photo;}else if(!pin.photos){pin.photos=[];}});
   _activePlanId=plans.length?plans[0].id:null;
   _planImgCache={};
   for(const pl of plans){
@@ -34134,7 +34142,7 @@ function renderAll(){
 }
 
 function rPhotos(iss){
-  const pp=pins.filter(p=>p.issueId===iss.id&&p.type==='photo'&&p.photo?.du);
+  const pp=pins.filter(p=>p.issueId===iss.id&&p.type==='photo'&&p.photos?.some(ph=>ph.du));
   // Suppress drag-drop photos that have been pinned to ANY issue (even if the pin was later moved)
   const pinnedPhotoIds=new Set(pins.filter(p=>p.sourcePhotoId!=null&&iss.photos.some(ph=>ph.id===p.sourcePhotoId)).map(p=>p.sourcePhotoId));
   const unpinnedPhotos=iss.photos.filter(ph=>!pinnedPhotoIds.has(ph.id));
@@ -34148,15 +34156,19 @@ function rPhotos(iss){
         <button class="pd" onclick="delPh(${iss.id},${ph.id})">✕ Remove</button>
       </div>
     </div>`).join('')}
-  ${pp.map(pin=>{const pinNum=pins.indexOf(pin)+1;return`
-    <div class="pc2">
-      <img class="pt" src="${pin.photo.du}" alt="" onclick="openLightbox(this.src)">
+  ${pp.map(pin=>{
+    const pinNum=pins.indexOf(pin)+1;
+    const phs=(pin.photos||[]).filter(ph=>ph.du);
+    return phs.map((ph,pi)=>{
+      const alpha=phs.length>1?String.fromCharCode(65+pi):'';
+      return`<div class="pc2">
+      <img class="pt" src="${ph.du}" alt="" onclick="openLightbox(this.src)">
       <div class="pf">
-        <input class="pci" value="${e(pin.photo.cap)}" placeholder="Caption…" oninput="updatePinCap(${pin.id},this.value)">
-        <div class="sr"><span style="color:#282828;font-weight:700">📍 P${pinNum}</span></div>
-        <button class="pd" onclick="delPin(${pin.id})">✕ Remove Pin</button>
+        <input class="pci" value="${e(ph.cap)}" placeholder="Caption…" oninput="updatePinPhotoCap(${pin.id},${pi},this.value)">
+        <div class="sr"><span style="color:#282828;font-weight:700">📍 P${pinNum}${alpha}</span></div>
+        ${pi===0?`<button class="pd" onclick="delPin(${pin.id})">✕ Remove Pin</button>`:`<button class="pd" onclick="delPinPhoto(${pin.id},${pi})">✕ Remove Photo</button>`}
       </div>
-    </div>`;}).join('')}
+    </div>`;}).join('');}).join('')}
   </div>`;
 }
 
@@ -34179,7 +34191,14 @@ function createNode(html){const d=document.createElement('div');d.innerHTML=html
 function ph_c(iid,pid,v){const iss=issues.find(i=>i.id===iid);if(iss){const ph=iss.photos.find(p=>p.id===pid);if(ph)ph.cap=v;}saveSt();}
 function ph_s(iid,pid,v){const iss=issues.find(i=>i.id===iid);if(iss){const ph=iss.photos.find(p=>p.id===pid);if(ph)ph.wp=parseInt(v);}saveSt();}
 function delPh(iid,pid){const iss=issues.find(i=>i.id===iid);if(iss){iss.photos=iss.photos.filter(p=>p.id!==pid);}renderAll();saveSt();}
-function updatePinCap(pinId,val){const pin=pins.find(p=>p.id===pinId);if(pin&&pin.photo)pin.photo.cap=val;saveSt();}
+function updatePinPhotoCap(pinId,idx,val){const pin=pins.find(p=>p.id===pinId);if(pin&&pin.photos&&pin.photos[idx])pin.photos[idx].cap=val;saveSt();}
+function updatePinCap(pinId,val){updatePinPhotoCap(pinId,0,val);}
+function delPinPhoto(pinId,idx){
+  const pin=pins.find(p=>p.id===pinId);if(!pin)return;
+  pin.photos.splice(idx,1);
+  if(!pin.photos.length)pins=pins.filter(p=>p.id!==pinId);
+  renderAll();_drawPlan();renderInlinePlan();saveSt();toast('Photo removed');
+}
 function delPin(pinId){pins=pins.filter(p=>p.id!==pinId);_drawPlan();renderAll();renderInlinePlan();saveSt();}
 
 function toggleConc(){
@@ -34506,7 +34525,7 @@ function _handleTap(cx,cy){
     const ph=_retroPin.photo;const issId=_retroPin.issueId;
     const pin={id:++pnseq,planId:_activePlanId,x,y,issueId:issId,type:'photo',
       sourcePhotoId:_retroPin.photoId,
-      photo:{du:ph.du,tp:ph.tp,cap:ph.cap,nW:ph.nW,nH:ph.nH}};
+      photos:[{du:ph.du,tp:ph.tp,cap:ph.cap,nW:ph.nW,nH:ph.nH}]};
     pins.push(pin);
     _clearRetroPin();
     _drawPlan();renderInlinePlan();renderAll();saveSt();
@@ -34548,24 +34567,10 @@ function activatePinPhoto(mode){
   // ── DROP MODE — show drop zone in-panel, don't close ──
   if(mode==='drop'){_droppedPhotoData=null;_showDropZone();return;}
   _hideDropZone();
-  // ── EDIT MODE — replace photo on the existing pin ──
+  // ── EDIT MODE — add another photo to the existing pin (panel stays open) ──
   if(_editingPinId){
     const pin=pins.find(p=>p.id===_editingPinId);
-    if(pin){
-      // Update issue link from current select state before closing
-      const selEl=document.getElementById('pin-issue-select');
-      if(selEl?.value==='new'){
-        const newTitle=(document.getElementById('pin-new-issue-input')?.value||'').trim();
-        if(newTitle){const newIss={id:++iseq,title:newTitle,desc:'',photos:[]};issues.push(newIss);pin.issueId=newIss.id;}
-      } else {
-        const issId=parseInt(selEl?.value||'0');
-        pin.issueId=(!isNaN(issId)&&issId>0)?issId:null;
-      }
-      pin.type='photo';if(!pin.photo)pin.photo={du:'',tp:'jpeg',cap:'',nW:0,nH:0};
-      window._lastPinId=pin.id;
-    }
-    _editingPinId=null;_resetPanelToNewMode();
-    document.getElementById('pin-assign-panel').classList.add('hide');
+    if(pin){pin.type='photo';if(!pin.photos)pin.photos=[];window._lastPinId=pin.id;}
     _openPhotoInput(mode);
     return;
   }
@@ -34582,7 +34587,7 @@ function activatePinPhoto(mode){
   }
   const pin={id:++pnseq,planId:_activePlanId,x:_pendingPin.x,y:_pendingPin.y,
     issueId:validIssId,type:'photo',note:'',
-    photo:{du:'',tp:'jpeg',cap:'',nW:0,nH:0}};
+    photos:[]};
   pins.push(pin);_pendingPin=null;
   document.getElementById('pin-assign-panel').classList.add('hide');
   _drawPlan();renderInlinePlan();saveSt();
@@ -34650,6 +34655,7 @@ function _resetPanelToNewMode(){
     if(btn.dataset.pmode==='add')btn.textContent='🖼 Add Photo';
   });
   _hideDropZone();
+  const gal=document.getElementById('pin-photo-gallery');if(gal){gal.style.display='none';gal.innerHTML='';}
 }
 
 function _openPinEdit(pin,pinNum){
@@ -34671,13 +34677,14 @@ function _openPinEdit(pin,pinNum){
   if(t)t.textContent=`📍 Edit Pin P${pinNum}`;
   if(c)c.textContent='Save Changes';
   if(d)d.classList.remove('hide');
-  // Relabel photo buttons to reflect replace action
+  // Relabel photo buttons to "Add" variants
   document.querySelectorAll('.pin-photo-opt').forEach(btn=>{
-    if(btn.dataset.pmode==='take')btn.textContent='📷 Retake Photo';
-    if(btn.dataset.pmode==='add')btn.textContent='🖼 Replace Photo';
+    if(btn.dataset.pmode==='take')btn.textContent='📷 Add via Camera';
+    if(btn.dataset.pmode==='add')btn.textContent='🖼 Add from Files';
     if(btn.dataset.pmode==='drop')btn.textContent='🖱 Drop Photo';
   });
   _hideDropZone();
+  _refreshPinGallery(pin);
   document.getElementById('pin-assign-panel').classList.remove('hide');
 }
 
@@ -34706,11 +34713,9 @@ function confirmPinAssign(){
     if(pin){
       pin.issueId=validIssId;
       if(_pendingPinType==='note'){
-        pin.type='note';pin.note=document.getElementById('pin-note-text')?.value||'';pin.photo=null;
+        pin.type='note';pin.note=document.getElementById('pin-note-text')?.value||'';pin.photos=[];
       } else {
-        pin.type='photo';
-        if(_pendingPhotoMode==='drop'&&_droppedPhotoData){pin.photo=_droppedPhotoData;}
-        else if(!pin.photo)pin.photo={du:'',tp:'jpeg',cap:'',nW:0,nH:0};
+        pin.type='photo';if(!pin.photos)pin.photos=[];
       }
     }
     _droppedPhotoData=null;
@@ -34732,7 +34737,7 @@ function confirmPinAssign(){
   if(_pendingPinType==='photo'){
     window._lastPinId=pin.id;
     if(_pendingPhotoMode==='drop'){
-      if(_droppedPhotoData){pin.photo=_droppedPhotoData;_droppedPhotoData=null;}
+      if(_droppedPhotoData){pin.photos.push(_droppedPhotoData);_droppedPhotoData=null;}
       renderAll();renderInlinePlan();saveSt();toast('Photo pin added ✓');
     } else if(_pendingPhotoMode==='add'){
       document.getElementById('pin-photo-input-add').click();
@@ -34758,12 +34763,31 @@ function onPinPhotoSelected(evt){
     const im=new Image();
     im.onload=()=>{
       let tp=file.type.split('/')[1];if(tp==='jpg')tp='jpeg';
-      pin.photo={du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight};
+      if(!pin.photos)pin.photos=[];
+      pin.photos.push({du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight});
       saveSt();renderAll();_drawPlan();renderInlinePlan();
-      toast('Photo pin added ✓');
+      _refreshPinGallery(pin);
+      toast('Photo added ✓');
     };im.src=ev.target.result;
   };rd.readAsDataURL(file);
   evt.target.value='';
+}
+
+// ── Pin photo gallery (edit panel) ───────────────────────────
+function _refreshPinGallery(pin){
+  const gal=document.getElementById('pin-photo-gallery');if(!gal)return;
+  const phs=(pin?.photos||[]).filter(ph=>ph.du);
+  if(!phs.length){gal.style.display='none';gal.innerHTML='';return;}
+  const pinNum=pins.indexOf(pin)+1;
+  gal.style.display='flex';
+  gal.innerHTML=phs.map((ph,pi)=>{
+    const alpha=phs.length>1?String.fromCharCode(65+pi):'';
+    return`<div class="ppg-item">
+      <img src="${ph.du}" alt="" onclick="openLightbox(this.src)">
+      <div class="ppg-lbl">P${pinNum}${alpha}</div>
+      <button class="ppg-rm" onclick="delPinPhoto(${pin.id},${pi});_refreshPinGallery(pins.find(p=>p.id===${pin.id}))" title="Remove this photo">✕</button>
+    </div>`;
+  }).join('');
 }
 
 // ── Pin drop zone ─────────────────────────────────────────────
@@ -34783,11 +34807,22 @@ function _processDroppedFile(file){
     const im=new Image();
     im.onload=()=>{
       let tp=file.type.split('/')[1];if(tp==='jpg')tp='jpeg';
-      _droppedPhotoData={du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight};
-      const dz=document.getElementById('pin-drop-zone');
-      if(dz){
-        dz.classList.remove('drag-over');dz.classList.add('has-photo');
-        dz.innerHTML=`✓ Photo ready<br><img src="${ev.target.result}" alt="">`;
+      const photoObj={du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight};
+      // If editing a pin, append immediately
+      const pin=_editingPinId?pins.find(p=>p.id===_editingPinId):null;
+      if(pin){
+        if(!pin.photos)pin.photos=[];
+        pin.photos.push(photoObj);
+        saveSt();renderAll();_drawPlan();renderInlinePlan();
+        _refreshPinGallery(pin);
+        const dz=document.getElementById('pin-drop-zone');
+        if(dz){dz.classList.remove('drag-over');dz.classList.add('has-photo');dz.innerHTML=`✓ Photo added<br><img src="${ev.target.result}" alt="">`;}
+        toast('Photo added ✓');
+      } else {
+        // New pin mode — store temporarily for confirmPinAssign
+        _droppedPhotoData=photoObj;
+        const dz=document.getElementById('pin-drop-zone');
+        if(dz){dz.classList.remove('drag-over');dz.classList.add('has-photo');dz.innerHTML=`✓ Photo ready<br><img src="${ev.target.result}" alt="">`;}
       }
     };im.src=ev.target.result;
   };rd.readAsDataURL(file);
@@ -34878,7 +34913,7 @@ function _renderPinLegend(planPins){
 
   // Build a helper that renders a single pin row (pinNum = position in planPins)
   const pinRow=(pin,pinNum)=>{
-    const txt=pin.type==='note'?e(pin.note||''):(pin.photo?.cap?e(pin.photo.cap):'');
+    const txt=pin.type==='note'?e(pin.note||''):(pin.photos?.[0]?.cap?e(pin.photos[0].cap):'');
     return`<div class="legend-row" onclick="scrollToPinIssue(${pin.id})" title="Jump to issue">
       <span class="legend-dot" style="background:#282828">${pinNum}</span>
       <span class="legend-label">${txt?`${pin.type==='note'?'✏️ ':''}${txt}`:'<span style="color:#aaa;font-weight:400;font-style:italic">No caption</span>'}</span>
@@ -34923,12 +34958,12 @@ function _renderPinLegend(planPins){
 function _renderPlanPinPhotos(planPins){
   const el=document.getElementById('plan-pin-photos');if(!el)return;
   // Only show photo pins with no issue assigned (assigned ones appear in their issue card)
-  const photoPins=planPins.filter(p=>p.type==='photo'&&p.photo?.du&&!p.issueId).map(p=>{
-    const idx=pins.indexOf(p)+1;
+  const photoPins=planPins.filter(p=>p.type==='photo'&&p.photos?.[0]?.du&&!p.issueId).map(p=>{
+    const idx=pins.indexOf(p)+1;const ph0=p.photos[0];
     return`<div class="ppp-item" onclick="openPlanAndFocusPin(${p.id})" title="Click to assign to an issue">
-      <img class="ppp-img" src="${p.photo.du}" alt="">
-      <div class="ppp-lbl">P${idx}</div>
-      ${p.photo.cap?`<div class="ppp-cap">${e(p.photo.cap)}</div>`:''}
+      <img class="ppp-img" src="${ph0.du}" alt="">
+      <div class="ppp-lbl">P${idx}${p.photos.length>1?' ('+p.photos.length+')':''}</div>
+      ${ph0.cap?`<div class="ppp-cap">${e(ph0.cap)}</div>`:''}
     </div>`;
   });
   if(!photoPins.length){el.style.display='none';el.innerHTML='';return;}
@@ -35216,18 +35251,17 @@ async function _gen(){
   children.push(...bLines(F.gen));
 
   // Issues — merge drag-drop photos + pinned photos
-  const validIss=s.issues.filter(i=>i.title||i.desc||i.photos.length||pins.some(p=>p.issueId===i.id&&p.photo&&p.photo.du));
+  const validIss=s.issues.filter(i=>i.title||i.desc||i.photos.length||pins.some(p=>p.issueId===i.id&&p.photos?.some(ph=>ph.du)));
   if(validIss.length)children.push(subHd('Key Issues Identified'));
 
   const A4H_PX=Math.round(16838/1440*96);
-  const TARGET_H=Math.round(A4H_PX*0.35);
-  const PORT_H=Math.round(A4H_PX*0.32);
+  const IMG_H=Math.round(A4H_PX*0.35);  // all photos: 35% of A4 height
   const colW=Math.floor(CDXA/2);
 
   const makePhCell=(ph)=>{
     const buf=duBuf(ph.du);let tp=ph.tp||'jpeg';
     if(tp==='jpg')tp='jpeg';if(!['png','jpeg','gif','bmp'].includes(tp))tp='jpeg';
-    const tH=PORT_H;
+    const tH=IMG_H;
     const tW=(ph.nW&&ph.nH)?Math.round(tH*(ph.nW/ph.nH)):Math.round(tH*0.75);
     const cap=ph.cap||'';
     const cellKids=[new Paragraph({alignment:AlignmentType.CENTER,...sp(0,cap?40:80),children:[new ImageRun({type:tp,data:buf,transformation:{width:tW,height:tH},altText:{title:cap||'Photo',description:cap||'',name:cap||'Photo'}})]})];
@@ -35236,9 +35270,8 @@ async function _gen(){
   };
 
   const addPhotoBlock=(ph)=>{
-    const isPort=ph.nW&&ph.nH&&ph.nH>ph.nW;
     let tH,tW;
-    if(ph.nW&&ph.nH){tH=PORT_H;tW=Math.round(tH*(ph.nW/ph.nH));if(tW>CPX){tW=CPX;tH=Math.round(tW*(ph.nH/ph.nW));}}
+    if(ph.nW&&ph.nH){tH=IMG_H;tW=Math.round(tH*(ph.nW/ph.nH));if(tW>CPX){tW=CPX;tH=Math.round(tW*(ph.nH/ph.nW));}}
     else{tW=Math.round(CPX*0.7);tH=Math.round(tW*0.75);}
     const buf=duBuf(ph.du);let tp=ph.tp||'jpeg';
     if(tp==='jpg')tp='jpeg';if(!['png','jpeg','gif','bmp'].includes(tp))tp='jpeg';
@@ -35251,7 +35284,7 @@ async function _gen(){
 
   for(let idx=0;idx<s.issues.length;idx++){
     const iss=s.issues[idx];
-    const issPins=pins.filter(p=>p.issueId===iss.id&&p.photo&&p.photo.du);
+    const issPins=pins.filter(p=>p.issueId===iss.id&&p.photos?.some(ph=>ph.du));
     if(!iss.title&&!iss.desc&&!iss.photos.filter(p=>p.du).length&&!issPins.length)continue;
 
     children.push(new Paragraph({numbering:{reference:'issue-list',level:0},children:[new TextRun({text:iss.title||'',font:'Mulish',bold:true,size:22,color:DARK})],...sp(160,80)}));
@@ -35275,12 +35308,66 @@ async function _gen(){
       } else {addPhotoBlock(ph);pi++;}
     }
 
-    // Pinned photos (with P# prefix in caption)
-    issPins.forEach(pin=>{
-      const _pinNum=pins.indexOf(pin)+1;
-      const ph={...pin.photo,cap:`P${_pinNum}${pin.photo.cap?' — '+pin.photo.cap:''}`};
-      addPhotoBlock(ph);
-    });
+    // ── Pinned photos — portrait-paired smart layout ──
+    // Build blocks: portraits first within each pin, labelled A/B/C in layout order
+    const _pinBlocks=[];
+    for(const pin of issPins){
+      const pinNum=pins.indexOf(pin)+1;
+      const valid=(pin.photos||[]).filter(ph=>ph.du);
+      if(!valid.length)continue;
+      const portraits=valid.filter(ph=>ph.nH>ph.nW);
+      const landscapes=valid.filter(ph=>ph.nH<=ph.nW||(!ph.nH&&!ph.nW));
+      const sorted=[...portraits,...landscapes];
+      _pinBlocks.push(sorted.map((ph,i)=>({
+        photo:ph,
+        label:`P${pinNum}${sorted.length>1?String.fromCharCode(65+i):''}`,
+        isPort:ph.nH>ph.nW
+      })));
+    }
+    // Greedy reorder: if block ends with portrait, bring forward nearest block starting with portrait
+    const _ordered=[];const _rem=[..._pinBlocks];
+    while(_rem.length){
+      const blk=_rem.shift();_ordered.push(blk);
+      if(blk[blk.length-1].isPort&&_rem.length){
+        const pi=_rem.findIndex(b=>b[0].isPort);
+        if(pi>0){const[p]=_rem.splice(pi,1);_rem.unshift(p);}
+      }
+    }
+    // Generate rows with pending-portrait cross-block pairing
+    const _rows=[];let _pend=null;
+    for(const blk of _ordered){for(const item of blk){
+      if(item.isPort){if(_pend){_rows.push([_pend,item]);_pend=null;}else _pend=item;}
+      else{if(_pend){_rows.push([_pend]);_pend=null;}_rows.push([item]);}
+    }}
+    if(_pend)_rows.push([_pend]);
+    // Render rows
+    const _makePinCell=(item)=>{
+      const ph=item.photo;const buf=duBuf(ph.du);let tp=ph.tp||'jpeg';
+      if(tp==='jpg')tp='jpeg';if(!['png','jpeg','gif','bmp'].includes(tp))tp='jpeg';
+      let iH=IMG_H,iW=(ph.nW&&ph.nH)?Math.round(IMG_H*(ph.nW/ph.nH)):Math.round(IMG_H*0.75);
+      if(iW>Math.floor(CPX/2)){iW=Math.floor(CPX/2);iH=Math.round(iW*(ph.nH/ph.nW));}
+      const cap=item.label+(ph.cap?' — '+ph.cap:'');
+      const ck=[new Paragraph({alignment:AlignmentType.CENTER,...sp(120,cap?40:80),children:[new ImageRun({type:tp,data:buf,transformation:{width:iW,height:iH},altText:{title:cap||'Photo',description:cap||'',name:cap||'Photo'}})]})];
+      if(cap)ck.push(new Paragraph({alignment:AlignmentType.CENTER,...sp(0,80),children:[new TextRun({text:cap,font:'Mulish',italics:true,size:18,color:'666666'})]}));
+      return new TableCell({borders:{top:bN,bottom:bN,left:bN,right:bN},width:{size:colW,type:WidthType.DXA},margins:{top:60,bottom:60,left:50,right:50},children:ck});
+    };
+    try{
+      for(const row of _rows){
+        if(row.length===2){
+          children.push(new Paragraph({children:[],...sp(120,0)}));
+          children.push(new Table({width:{size:CDXA,type:WidthType.DXA},columnWidths:[colW,colW],borders:{top:bN,bottom:bN,left:bN,right:bN,insideH:bN,insideV:bN},rows:[new TableRow({children:[_makePinCell(row[0]),_makePinCell(row[1])]})]}));
+        }else{
+          const item=row[0];const ph=item.photo;
+          const buf=duBuf(ph.du);let tp=ph.tp||'jpeg';
+          if(tp==='jpg')tp='jpeg';if(!['png','jpeg','gif','bmp'].includes(tp))tp='jpeg';
+          let iH=IMG_H,iW=(ph.nW&&ph.nH)?Math.round(IMG_H*(ph.nW/ph.nH)):Math.round(IMG_H*0.75);
+          if(iW>CPX){iW=CPX;iH=Math.round(iW*(ph.nH/ph.nW));}
+          const cap=item.label+(ph.cap?' — '+ph.cap:'');
+          children.push(new Paragraph({alignment:AlignmentType.CENTER,...sp(120,0),children:[new ImageRun({type:tp,data:buf,transformation:{width:iW,height:iH},altText:{title:cap||'Photo',description:cap||'',name:cap||'Photo'}})]}));
+          if(cap)children.push(new Paragraph({children:[new TextRun({text:cap,font:'Mulish',italics:true,size:18,color:'666666'})],alignment:AlignmentType.CENTER,...sp(40,60)}));
+        }
+      }
+    }catch(ex){console.warn('Pin photo layout error:',ex);}
   }
 
   // ── Annotated Plans section ──
@@ -35320,7 +35407,7 @@ async function _gen(){
           return new TableRow({children:[
             new TableCell({borders:{top:bN,bottom:bT,left:bN,right:bN},width:{size:800,type:WidthType.DXA},margins:{top:60,bottom:60,left:80,right:60},children:[new Paragraph({children:[new TextRun({text:'P'+(i+1),font:'Mulish',bold:true,size:18,color:BLUE})]})]}) ,
             new TableCell({borders:{top:bN,bottom:bT,left:bN,right:bN},width:{size:3000,type:WidthType.DXA},margins:{top:60,bottom:60,left:80,right:60},children:[new Paragraph({children:[new TextRun({text:issTitle,font:'Mulish',size:18,color:DARK})]})]}),
-            new TableCell({borders:{top:bN,bottom:bT,left:bN,right:bN},width:{size:CDXA-3800,type:WidthType.DXA},margins:{top:60,bottom:60,left:80,right:60},children:[new Paragraph({children:[new TextRun({text:pin.photo&&pin.photo.cap?pin.photo.cap:'',font:'Mulish',size:18,color:DARK})]})]})
+            new TableCell({borders:{top:bN,bottom:bT,left:bN,right:bN},width:{size:CDXA-3800,type:WidthType.DXA},margins:{top:60,bottom:60,left:80,right:60},children:[new Paragraph({children:[new TextRun({text:pin.photos?.[0]?.cap||'',font:'Mulish',size:18,color:DARK})]})]})
           ]});
         });
         children.push(new Table({width:{size:CDXA,type:WidthType.DXA},columnWidths:[800,3000,CDXA-3800],rows:[hdrRow,...dataRows],borders:{top:bN,bottom:bN,left:bN,right:bN,insideH:bN,insideV:bN}}));
@@ -35505,7 +35592,7 @@ async function clwSyncVisit(visitId) {
   // Visit metadata JSON (photo blobs stripped to keep payload small)
   const safe = { ...visit,
     issues: (visit.issues||[]).map(iss => ({ ...iss, photos: iss.photos.map(ph => ({ ...ph, du:'[see photo files]' })) })),
-    pins:   (visit.pins||[]).map(pin => pin.photo?.du ? { ...pin, photo: { ...pin.photo, du:'[see photo files]' } } : pin)
+    pins:   (visit.pins||[]).map(pin=>({...pin,photos:(pin.photos||[]).map(ph=>ph.du?{...ph,du:'[see photo files]'}:ph)}))
   };
   await clwPostScript({ action:'file', project:projName, date:dateStr, rootFolder,
     filename:`visit_${visitId}_data.json`, text:JSON.stringify(safe, null, 2) });
@@ -35516,10 +35603,16 @@ async function clwSyncVisit(visitId) {
     if (rec?.du) await postFile(`plan_${pl.id}.jpg`, rec.du).catch(()=>{});
   }
 
-  // Pinned photos (P1, P2… to match report numbering)
+  // Pinned photos (P1A, P1B… to match report numbering)
   let pn = 1;
   for (const pin of (visit.pins||[])) {
-    if (pin.type==='photo') { if (pin.photo?.du) await postFile(`pin_P${pn}.jpg`, pin.photo.du).catch(()=>{}); pn++; }
+    if (pin.type==='photo') {
+      const phs=(pin.photos||[]);
+      for(let pi=0;pi<phs.length;pi++){
+        if(phs[pi]?.du)await postFile(`pin_P${pn}${phs.length>1?String.fromCharCode(65+pi):'A'}.jpg`,phs[pi].du).catch(()=>{});
+      }
+      pn++;
+    }
   }
 
   // Issue photos
@@ -35591,13 +35684,15 @@ async function handleSavePhotos() {
         });
       });
       // Pin photos
-      pins.filter(p => p.type === 'photo' && p.photo?.du).forEach(pin => {
-        const ph = pin.photo;
-        const [hdr, b64] = ph.du.split(',');
-        const mime = (hdr.match(/:(.*?);/) || ['','image/jpeg'])[1];
-        const ext = mime.split('/')[1]?.replace('jpeg','jpg') || 'jpg';
-        const arr = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-        files.push(new File([arr], `site-photo-${seq++}.${ext}`, {type: mime}));
+      pins.filter(p => p.type === 'photo').forEach(pin => {
+        (pin.photos||[]).forEach(ph => {
+          if(!ph?.du)return;
+          const [hdr, b64] = ph.du.split(',');
+          const mime = (hdr.match(/:(.*?);/) || ['','image/jpeg'])[1];
+          const ext = mime.split('/')[1]?.replace('jpeg','jpg') || 'jpg';
+          const arr = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+          files.push(new File([arr], `site-photo-${seq++}.${ext}`, {type: mime}));
+        });
       });
       if (!files.length) { toast('No photos to save'); return; }
       if (navigator.canShare({files})) {
@@ -35627,8 +35722,11 @@ function openReviewScreen() {
   let pn = 1;
   for (const pin of pins) {
     if (pin.type==='photo') {
-      if (pin.photo?.du) all.push({ du:pin.photo.du, cap:pin.photo.cap||'',
-        label:'Pin P' + pn, onchange:'updatePinCap(' + pin.id + ',this.value)' });
+      (pin.photos||[]).forEach((ph,pi)=>{
+        if(ph?.du) all.push({ du:ph.du, cap:ph.cap||'',
+          label:'Pin P'+pn+(pin.photos.length>1?String.fromCharCode(65+pi):''),
+          onchange:'updatePinPhotoCap('+pin.id+','+pi+',this.value)' });
+      });
       pn++;
     }
   }
@@ -35839,9 +35937,9 @@ async function downloadAllPhotos() {
             .map(p => p.sourcePhotoId)
       );
       const unpinned = iss.photos.filter(ph => !pinnedIds.has(ph.id));
-      const issuePins = pins.filter(p => p.issueId === iss.id && p.type === 'photo' && p.photo?.du);
+      const issuePins = pins.filter(p => p.issueId === iss.id && p.type === 'photo' && p.photos?.some(ph=>ph.du));
       let n = 1;
-      [...unpinned, ...issuePins.map(p => p.photo)].forEach(ph => {
+      [...unpinned, ...issuePins.flatMap(p => p.photos||[])].forEach(ph => {
         if (!ph?.du) return;
         const ext = (ph.tp || 'jpeg').replace('jpg', 'jpeg');
         const filename = `Issue ${issNum}-${String(n).padStart(3, '0')}.${ext}`;
@@ -36017,7 +36115,8 @@ async function clwImportVisit(meta, btn) {
     for (const ph of (iss.photos || [])) { ph.du = ''; }
   }
   for (const pin of (cleanVisit.pins || [])) {
-    if (pin.photo) pin.photo.du = '';
+    if(pin.photo&&!pin.photos){pin.photos=pin.photo.du?[pin.photo]:[];delete pin.photo;}
+    for (const ph of (pin.photos||[])) { ph.du = ''; }
   }
 
   // 4. Save visit record
@@ -36025,7 +36124,7 @@ async function clwImportVisit(meta, btn) {
 
   // 5. Count total photos so the progress bar has a denominator
   const totalPhotos = (cleanVisit.plans || []).length
-    + (cleanVisit.pins  || []).filter(p => p.type === 'photo').length
+    + (cleanVisit.pins  || []).reduce((s,p)=>s+(p.type==='photo'?(p.photos||[]).length:0),0)
     + (cleanVisit.issues|| []).reduce((s, iss) => s + (iss.photos||[]).length, 0);
 
   // Inject a progress bar below the button
@@ -36082,7 +36181,7 @@ async function clwRefetchPhotos(baseUrl, newVisitId, onProgress) {
 
   // Count total for progress reporting
   const total = (v.plans||[]).length
-    + (v.pins||[]).filter(p => p.type==='photo').length
+    + (v.pins||[]).reduce((s,p)=>s+(p.type==='photo'?(p.photos||[]).length:0),0)
     + (v.issues||[]).reduce((s, iss) => s + (iss.photos||[]).length, 0);
   let done = 0, failed = 0;
 
@@ -36097,15 +36196,20 @@ async function clwRefetchPhotos(baseUrl, newVisitId, onProgress) {
     tick();
   }
 
-  // Pinned photos (P1, P2… matching sync order) — stored in visit record
+  // Pinned photos (P1A, P1B… matching sync order) — stored in visit record
   let pn = 1;
   for (const pin of (v.pins || [])) {
     if (pin.type === 'photo') {
-      try {
-        const du = await fetchPhoto('pin_P' + pn + '.jpg');
-        if (du && pin.photo) { pin.photo.du = du; }
-      } catch(err) { console.warn('Pin photo P' + pn + ' failed:', err.message); failed++; }
-      tick();
+      if(!pin.photos)pin.photos=[];
+      for(let pi=0;pi<pin.photos.length;pi++){
+        try {
+          // Try new multi-photo naming first, fall back to legacy single-photo name for pi===0
+          let du = await fetchPhoto(`pin_P${pn}${String.fromCharCode(65+pi)}.jpg`).catch(()=>null);
+          if(!du && pi===0) du = await fetchPhoto(`pin_P${pn}.jpg`).catch(()=>null);
+          if(du) pin.photos[pi].du = du;
+        } catch(err) { console.warn('Pin photo P'+pn+String.fromCharCode(65+pi)+' failed:', err.message); failed++; }
+        tick();
+      }
       pn++;
     }
   }
