@@ -222,6 +222,10 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .pin-photo-opts{display:flex;gap:8px;margin-bottom:10px}
 .pin-photo-opt{flex:1;padding:7px 10px;border-radius:7px;border:1.5px solid var(--brd);background:white;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .15s;text-align:center}
 .pin-photo-opt.active{border-color:var(--clw-blue);background:rgba(0,108,170,.08);color:var(--clw-blue)}
+.pin-drop-zone{display:none;border:2px dashed var(--brd);border-radius:8px;padding:14px 10px;text-align:center;color:var(--clw-mid);font-size:12px;font-weight:600;cursor:default;transition:border-color .15s,background .15s;margin-bottom:10px;user-select:none}
+.pin-drop-zone.drag-over{border-color:var(--clw-blue);background:rgba(0,108,170,.07);color:var(--clw-blue)}
+.pin-drop-zone.has-photo{border-color:#16a34a;background:rgba(22,163,74,.06);color:#15803d}
+.pin-drop-zone img{max-width:100%;max-height:72px;border-radius:4px;margin-top:8px;display:block;margin-left:auto;margin-right:auto;object-fit:contain}
 .pap-new-issue{margin-top:6px;border:1.5px solid var(--brd);border-radius:6px;padding:7px 10px;font-size:13px;font-family:inherit;color:var(--clw-dark);width:100%;box-sizing:border-box}
 .pap-actions{display:flex;gap:8px;margin-top:4px}
 .pap-confirm{flex:1;background:var(--clw-blue);color:white;border:none;padding:10px;border-radius:8px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer}
@@ -478,7 +482,9 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
       <div id="pin-photo-opts" class="pin-photo-opts">
         <button class="pin-photo-opt active" data-pmode="take" onclick="activatePinPhoto('take')">📷 Take Photo</button>
         <button class="pin-photo-opt" data-pmode="add" onclick="activatePinPhoto('add')">🖼 Add Photo</button>
+        <button class="pin-photo-opt" data-pmode="drop" onclick="activatePinPhoto('drop')">🖱 Drop Photo</button>
       </div>
+      <div id="pin-drop-zone" class="pin-drop-zone">Drop image here</div>
       <div id="pin-note-area" class="pap-row hide">
         <label>Note / Comment</label>
         <textarea id="pin-note-text" rows="3" placeholder="Describe what you observed at this location…"></textarea>
@@ -33779,7 +33785,7 @@ let currentProjectId=null, currentVisitId=null;
 let _saveTimer=null, _lastSaved=null;
 let issues=[],iseq=0,pseq=0;
 let plans=[],planSeq=0,pins=[],pnseq=0;
-let _activePlanId=null,_contextIssueId=null,_pendingPin=null,_pendingPinType='photo',_pendingPhotoMode='take',_editingPinId=null,_draggingPin=null,_retroPin=null;
+let _activePlanId=null,_contextIssueId=null,_pendingPin=null,_pendingPinType='photo',_pendingPhotoMode='take',_editingPinId=null,_draggingPin=null,_retroPin=null,_droppedPhotoData=null;
 let _planCrops={};           // {planId:{x1,y1,x2,y2}} — fractions of full image
 let _inlineCropMode=false,_icDragging=false,_icStart=null,_inlinePlanImgCache=null;
 let _planImgCache={};
@@ -34539,6 +34545,9 @@ function setPinPhotoMode(mode){
 function activatePinPhoto(mode){
   _pendingPhotoMode=mode;
   document.querySelectorAll('.pin-photo-opt').forEach(b=>b.classList.toggle('active',b.dataset.pmode===mode));
+  // ── DROP MODE — show drop zone in-panel, don't close ──
+  if(mode==='drop'){_droppedPhotoData=null;_showDropZone();return;}
+  _hideDropZone();
   // ── EDIT MODE — replace photo on the existing pin ──
   if(_editingPinId){
     const pin=pins.find(p=>p.id===_editingPinId);
@@ -34640,6 +34649,7 @@ function _resetPanelToNewMode(){
     if(btn.dataset.pmode==='take')btn.textContent='📷 Take Photo';
     if(btn.dataset.pmode==='add')btn.textContent='🖼 Add Photo';
   });
+  _hideDropZone();
 }
 
 function _openPinEdit(pin,pinNum){
@@ -34665,7 +34675,9 @@ function _openPinEdit(pin,pinNum){
   document.querySelectorAll('.pin-photo-opt').forEach(btn=>{
     if(btn.dataset.pmode==='take')btn.textContent='📷 Retake Photo';
     if(btn.dataset.pmode==='add')btn.textContent='🖼 Replace Photo';
+    if(btn.dataset.pmode==='drop')btn.textContent='🖱 Drop Photo';
   });
+  _hideDropZone();
   document.getElementById('pin-assign-panel').classList.remove('hide');
 }
 
@@ -34696,9 +34708,12 @@ function confirmPinAssign(){
       if(_pendingPinType==='note'){
         pin.type='note';pin.note=document.getElementById('pin-note-text')?.value||'';pin.photo=null;
       } else {
-        pin.type='photo';if(!pin.photo)pin.photo={du:'',tp:'jpeg',cap:'',nW:0,nH:0};
+        pin.type='photo';
+        if(_pendingPhotoMode==='drop'&&_droppedPhotoData){pin.photo=_droppedPhotoData;}
+        else if(!pin.photo)pin.photo={du:'',tp:'jpeg',cap:'',nW:0,nH:0};
       }
     }
+    _droppedPhotoData=null;
     _editingPinId=null;_resetPanelToNewMode();
     document.getElementById('pin-assign-panel').classList.add('hide');
     _drawPlan();renderInlinePlan();renderAll();saveSt();
@@ -34716,7 +34731,10 @@ function confirmPinAssign(){
   _drawPlan();renderInlinePlan();saveSt();
   if(_pendingPinType==='photo'){
     window._lastPinId=pin.id;
-    if(_pendingPhotoMode==='add'){
+    if(_pendingPhotoMode==='drop'){
+      if(_droppedPhotoData){pin.photo=_droppedPhotoData;_droppedPhotoData=null;}
+      renderAll();renderInlinePlan();saveSt();toast('Photo pin added ✓');
+    } else if(_pendingPhotoMode==='add'){
       document.getElementById('pin-photo-input-add').click();
     } else {
       const fi=document.getElementById('pin-photo-input');
@@ -34747,6 +34765,48 @@ function onPinPhotoSelected(evt){
   };rd.readAsDataURL(file);
   evt.target.value='';
 }
+
+// ── Pin drop zone ─────────────────────────────────────────────
+function _showDropZone(){
+  const dz=document.getElementById('pin-drop-zone');
+  if(dz){dz.style.display='block';dz.innerHTML='Drop image here';}
+}
+function _hideDropZone(){
+  const dz=document.getElementById('pin-drop-zone');
+  if(dz){dz.style.display='none';dz.innerHTML='Drop image here';dz.classList.remove('drag-over','has-photo');}
+  _droppedPhotoData=null;
+}
+function _processDroppedFile(file){
+  if(!file||!file.type.startsWith('image/'))return;
+  const rd=new FileReader();
+  rd.onload=ev=>{
+    const im=new Image();
+    im.onload=()=>{
+      let tp=file.type.split('/')[1];if(tp==='jpg')tp='jpeg';
+      _droppedPhotoData={du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight};
+      const dz=document.getElementById('pin-drop-zone');
+      if(dz){
+        dz.classList.remove('drag-over');dz.classList.add('has-photo');
+        dz.innerHTML=`✓ Photo ready<br><img src="${ev.target.result}" alt="">`;
+      }
+    };im.src=ev.target.result;
+  };rd.readAsDataURL(file);
+}
+document.addEventListener('DOMContentLoaded',()=>{
+  const dz=document.getElementById('pin-drop-zone');
+  if(!dz)return;
+  dz.addEventListener('dragover',ev=>{ev.preventDefault();dz.classList.add('drag-over');});
+  dz.addEventListener('dragleave',()=>{dz.classList.remove('drag-over');});
+  dz.addEventListener('drop',ev=>{
+    ev.preventDefault();dz.classList.remove('drag-over');
+    const file=ev.dataTransfer.files[0];
+    _processDroppedFile(file);
+  });
+  // Also accept clicks on the drop zone to open file picker as fallback
+  dz.addEventListener('click',()=>{
+    const fi=document.getElementById('pin-photo-input-add');if(fi)fi.click();
+  });
+});
 
 // ── Inline plan view ─────────────────────────────────────────
 async function renderInlinePlan(){
