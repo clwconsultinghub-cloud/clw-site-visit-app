@@ -360,6 +360,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
       <span class="hdr-title" id="visit-hdr-title" contenteditable="true" spellcheck="false" title="Click to rename" onblur="saveSt()" oninput="saveSt()" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}">Site Visit</span>
     </div>
     <div class="visit-hdr-actions">
+      <button onclick="location.reload(true)" title="Reload app to pick up latest version" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:white;padding:5px 10px;border-radius:16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer">↺ Refresh</button>
       <div id="sync-status-v" class="sync-status sync-saved">● Saved</div>
       <button id="manual-sync-btn" class="gen-btn hide" onclick="clwManualSync()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);box-shadow:none"><span>☁</span> Sync</button>
       <button class="gen-btn" id="dl-photos-btn" onclick="handleSavePhotos()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);box-shadow:none"><span id="dl-photos-icon">⬇️</span> <span id="dl-photos-label">Save Photos</span></button>
@@ -34299,7 +34300,7 @@ function rPhotos(iss){
       <img class="pt" src="${ph.du}" alt="" onclick="openIssueLightbox(${iss.id},${i})">
       <div class="pf">
         <input class="pci" value="${e(ph.cap)}" placeholder="Caption…" oninput="updatePinPhotoCap(${pin.id},${pi},this.value)">
-        <div class="sr"><span style="color:#282828;font-weight:700">📍 P${pinNum}${alpha}</span></div>
+        <div class="sr"><span style="color:#282828;font-weight:700">📍 P${pinNum}${alpha}</span>${ph.ts?`<span style="font-size:10px;color:var(--clw-mid);margin-left:6px">${fmtTs(ph.ts)}</span>`:''}</div>
         ${pi===0?`<button class="pd" onclick="delPin(${pin.id})">✕ Remove Pin</button>`:`<button class="pd" onclick="delPinPhoto(${pin.id},${pi})">✕ Remove Photo</button>`}
       </div>
     </div>`;}).join('');}).join('')}
@@ -34333,6 +34334,21 @@ function addFs(iid,files){
   });
 }
 function createNode(html){const d=document.createElement('div');d.innerHTML=html;return d.firstChild;}
+function fmtTs(ts){if(!ts)return'';const d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');}
+function addFsCamera(iid,files){
+  const iss=issues.find(i=>i.id===iid);if(!iss||!files)return;
+  Array.from(files).forEach(f=>{
+    const rd=new FileReader();
+    rd.onload=ev=>{
+      const im=new Image();
+      im.onload=()=>{
+        let tp=f.type.split('/')[1];if(tp==='jpg')tp='jpeg';
+        iss.photos.push({id:++pseq,du:ev.target.result,tp,cap:'',wp:70,nW:im.naturalWidth,nH:im.naturalHeight,ts:Date.now()});
+        renderAll();saveSt();
+      };im.src=ev.target.result;
+    };rd.readAsDataURL(f);
+  });
+}
 function ph_c(iid,pid,v){const iss=issues.find(i=>i.id===iid);if(iss){const ph=iss.photos.find(p=>p.id===pid);if(ph)ph.cap=v;}saveSt();}
 function ph_s(iid,pid,v){const iss=issues.find(i=>i.id===iid);if(iss){const ph=iss.photos.find(p=>p.id===pid);if(ph)ph.wp=parseInt(v);}saveSt();}
 function delPh(iid,pid){const iss=issues.find(i=>i.id===iid);if(iss){iss.photos=iss.photos.filter(p=>p.id!==pid);}renderAll();saveSt();}
@@ -34974,7 +34990,8 @@ function onPinPhotoSelected(evt){
       const im=new Image();
       im.onload=()=>{
         let tp=file.type.split('/')[1];if(tp==='jpg')tp='jpeg';
-        pin.photos.push({du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight});
+        const isCamera=evt.target.id==='pin-photo-input';
+        pin.photos.push({du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight,...(isCamera?{ts:Date.now()}:{})});
         remaining--;
         if(remaining===0){
           saveSt();renderAll();_drawPlan();renderInlinePlan();
