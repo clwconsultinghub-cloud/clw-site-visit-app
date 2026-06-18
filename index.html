@@ -510,9 +510,9 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
         <button class="pin-photo-opt" data-pmode="drop" onclick="activatePinPhoto('drop')">🖱 Drop Photo</button>
       </div>
       <div id="pin-drop-zone" class="pin-drop-zone">Drop image here</div>
-      <div id="pin-note-area" class="pap-row hide">
-        <label>Note / Comment</label>
-        <textarea id="pin-note-text" rows="3" placeholder="Describe what you observed at this location…"></textarea>
+      <div id="pin-note-area" class="pap-row">
+        <label>Notes (optional)</label>
+        <textarea id="pin-note-text" rows="2" placeholder="Describe what you observed at this location…"></textarea>
       </div>
       <div class="pap-actions">
         <button class="pap-cancel" onclick="cancelPin()">Cancel</button>
@@ -34785,7 +34785,8 @@ function _handleTap(cx,cy){
 function setPinType(type){
   _pendingPinType=type;
   document.querySelectorAll('.pin-type-btn').forEach(b=>b.classList.toggle('active',b.dataset.type===type));
-  document.getElementById('pin-note-area').classList.toggle('hide',type!=='note');
+  // Note area is always visible so users can add notes to both photo and note pins
+  document.getElementById('pin-note-area').classList.remove('hide');
   document.getElementById('pin-photo-opts').classList.toggle('hide',type!=='photo');
 }
 
@@ -34908,7 +34909,7 @@ function _openPinEdit(pin,pinNum){
   const ni=document.getElementById('pin-new-issue-input');ni.classList.add('hide');ni.value='';
   // Set type toggle
   setPinType(pin.type);setPinPhotoMode('add');
-  if(pin.type==='note')document.getElementById('pin-note-text').value=pin.note||'';
+  document.getElementById('pin-note-text').value=pin.note||'';
   // Update panel chrome for edit mode
   const t=document.getElementById('pap-title');
   const c=document.getElementById('pap-confirm-btn');
@@ -34953,10 +34954,12 @@ function confirmPinAssign(){
     const pin=pins.find(p=>p.id===_editingPinId);
     if(pin){
       pin.issueId=validIssId;
+      const _noteVal=document.getElementById('pin-note-text')?.value||'';
       if(_pendingPinType==='note'){
-        pin.type='note';pin.note=document.getElementById('pin-note-text')?.value||'';pin.photos=[];
+        pin.type='note';pin.note=_noteVal;
+        // Never wipe existing photos — preserve them even if type switches to note
       } else {
-        pin.type='photo';if(!pin.photos)pin.photos=[];
+        pin.type='photo';if(!pin.photos)pin.photos=[];pin.note=_noteVal;
       }
     }
     _droppedPhotoData=null;
@@ -34968,7 +34971,7 @@ function confirmPinAssign(){
   }
   // ── NEW PIN MODE ──
   if(!_pendingPin)return;
-  const noteText=_pendingPinType==='note'?(document.getElementById('pin-note-text')?.value||''):'';
+  const noteText=document.getElementById('pin-note-text')?.value||'';
   const pin={id:++pnseq,planId:_activePlanId,x:_pendingPin.x,y:_pendingPin.y,
     issueId:validIssId,type:_pendingPinType,note:noteText,
     photo:_pendingPinType==='photo'?{du:'',tp:'jpeg',cap:'',nW:0,nH:0}:null};
