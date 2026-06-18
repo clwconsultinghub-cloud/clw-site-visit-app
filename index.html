@@ -34972,7 +34972,11 @@ function confirmPinAssign(){
       pin.issueId=validIssId;
       // Always save note text; never change the pin's type in edit mode (type is fixed at creation)
       pin.note=document.getElementById('pin-note-text')?.value||'';
-      if(pin.type==='photo'){if(!pin.photos)pin.photos=[];}
+      if(pin.type==='photo'){
+        if(!pin.photos)pin.photos=[];
+        // Back-fill any photos that still have no caption with the pin's note
+        if(pin.note){pin.photos.forEach(ph=>{if(!ph.cap)ph.cap=pin.note;});}
+      }
     }
     _droppedPhotoData=null;
     // Keep panel open so user can continue editing (add photos, change note, etc.)
@@ -34993,7 +34997,7 @@ function confirmPinAssign(){
   if(_pendingPinType==='photo'){
     window._lastPinId=pin.id;
     if(_pendingPhotoMode==='drop'){
-      if(_droppedPhotoData){pin.photos.push(_droppedPhotoData);_droppedPhotoData=null;}
+      if(_droppedPhotoData){if(!_droppedPhotoData.cap&&noteText)_droppedPhotoData.cap=noteText;pin.photos.push(_droppedPhotoData);_droppedPhotoData=null;}
       renderAll();renderInlinePlan();saveSt();_showPlanReadyHint();toast('Photo pin added ✓');
     } else if(_pendingPhotoMode==='add'){
       document.getElementById('pin-photo-input-add').click();
@@ -35030,7 +35034,7 @@ function onPinPhotoSelected(evt){
       im.onload=()=>{
         let tp=file.type.split('/')[1];if(tp==='jpg')tp='jpeg';
         const isCamera=evt.target.id==='pin-photo-input';
-        pin.photos.push({du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight,...(isCamera?{ts:Date.now()}:{})});
+        pin.photos.push({du:ev.target.result,tp,cap:pin.note||'',nW:im.naturalWidth,nH:im.naturalHeight,...(isCamera?{ts:Date.now()}:{})});
         remaining--;
         if(remaining===0){
           saveSt();renderAll();_drawPlan();renderInlinePlan();
@@ -35098,9 +35102,9 @@ function _processDroppedFile(file){
     const im=new Image();
     im.onload=()=>{
       let tp=file.type.split('/')[1];if(tp==='jpg')tp='jpeg';
-      const photoObj={du:ev.target.result,tp,cap:'',nW:im.naturalWidth,nH:im.naturalHeight};
       // If editing a pin, append immediately
       const pin=_editingPinId?pins.find(p=>p.id===_editingPinId):null;
+      const photoObj={du:ev.target.result,tp,cap:pin?.note||'',nW:im.naturalWidth,nH:im.naturalHeight};
       if(pin){
         if(!pin.photos)pin.photos=[];
         pin.photos.push(photoObj);
