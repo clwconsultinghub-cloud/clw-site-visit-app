@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>CLW Site Visit App</title>
 <link href="https://fonts.googleapis.com/css2?family=Mulish:wght@400;600;700;800&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
@@ -199,9 +199,9 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .legend-text{color:var(--clw-mid);flex:1}
 /* ── Plan overlay ── */
 .plan-overlay{position:fixed;inset:0;background:#1a1a1a;z-index:500;display:flex;flex-direction:column}
-.po-hdr{background:#222;padding:12px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.po-hdr{background:#111;padding:12px 16px;padding-top:max(12px,env(safe-area-inset-top,12px));display:flex;align-items:center;gap:10px;flex-shrink:0;border-bottom:2px solid var(--clw-blue)}
 .po-title{color:white;font-size:14px;font-weight:700;flex:1}
-.po-close{background:none;border:1px solid rgba(255,255,255,.3);color:white;padding:6px 14px;border-radius:16px;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer}
+.po-close{background:white;border:none;color:var(--clw-dark);padding:9px 18px;border-radius:20px;font-size:13px;font-weight:800;font-family:inherit;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.4);letter-spacing:.2px}
 .po-tabs{background:#2a2a2a;padding:8px 14px;display:flex;gap:8px;flex-wrap:wrap;flex-shrink:0;border-bottom:1px solid #333}
 .po-tab{background:none;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.7);padding:5px 12px;border-radius:16px;font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .15s}
 .po-tab.active{background:var(--clw-blue);border-color:var(--clw-blue);color:white}
@@ -33813,7 +33813,7 @@ let currentProjectId=null, currentVisitId=null;
 let _saveTimer=null, _lastSaved=null;
 let issues=[],iseq=0,pseq=0;
 let plans=[],planSeq=0,pins=[],pnseq=0;
-let _activePlanId=null,_contextIssueId=null,_pendingPin=null,_pendingPinType='photo',_pendingPhotoMode='take',_editingPinId=null,_draggingPin=null,_retroPin=null,_droppedPhotoData=null;
+let _activePlanId=null,_contextIssueId=null,_pendingPin=null,_pendingPinType='photo',_pendingPhotoMode='take',_editingPinId=null,_draggingPin=null,_retroPin=null,_droppedPhotoData=null,_pendingPinEdit=null;
 let _planCrops={};           // {planId:{x1,y1,x2,y2}} — fractions of full image
 let _inlineCropMode=false,_icDragging=false,_icStart=null,_inlinePlanImgCache=null;
 let _planImgCache={};
@@ -33826,12 +33826,14 @@ function showScreen(name){
 
 async function backToHome(){
   await saveCurrentVisit();
+  closePlanOverlay(); // ensure overlay doesn't persist between visits
   currentVisitId=null;currentProjectId=null;
   showScreen('home');await renderProjects();
 }
 
 async function backToProject(){
   await saveCurrentVisit();
+  closePlanOverlay(); // ensure overlay doesn't persist between visits
   currentVisitId=null;
   showScreen('project');await renderVisits(currentProjectId);
 }
@@ -34286,6 +34288,7 @@ function rPhotos(iss){
       <img class="pt" src="${ph.du}" alt="" onclick="openIssueLightbox(${iss.id},${i})">
       <div class="pf">
         <input class="pci" value="${e(ph.cap)}" placeholder="Caption…" oninput="ph_c(${iss.id},${ph.id},this.value)">
+        ${ph.ts?`<div style="margin-bottom:2px">${_tsTag(ph.ts)}</div>`:''}
         ${plans.length?`<button class="pd pd-pin" onclick="pinPhotoToMap(${iss.id},${ph.id})">📍 Pin to Plan</button>`:''}
         <button class="pd" onclick="delPh(${iss.id},${ph.id})">✕ Remove</button>
       </div>
@@ -34300,7 +34303,7 @@ function rPhotos(iss){
       <img class="pt" src="${ph.du}" alt="" onclick="openIssueLightbox(${iss.id},${i})">
       <div class="pf">
         <input class="pci" value="${e(ph.cap)}" placeholder="Caption…" oninput="updatePinPhotoCap(${pin.id},${pi},this.value)">
-        <div class="sr"><span style="color:#282828;font-weight:700">📍 P${pinNum}${alpha}</span>${ph.ts?`<span style="font-size:10px;color:var(--clw-mid);margin-left:6px">${fmtTs(ph.ts)}</span>`:''}</div>
+        <div class="sr"><span style="color:#282828;font-weight:700">📍 P${pinNum}${alpha}</span>${ph.ts?`<span style="margin-left:4px">${_tsTag(ph.ts)}</span>`:''}</div>
         ${pi===0?`<button class="pd" onclick="delPin(${pin.id})">✕ Remove Pin</button>`:`<button class="pd" onclick="delPinPhoto(${pin.id},${pi})">✕ Remove Photo</button>`}
       </div>
     </div>`;}).join('');}).join('')}
@@ -34334,7 +34337,9 @@ function addFs(iid,files){
   });
 }
 function createNode(html){const d=document.createElement('div');d.innerHTML=html;return d.firstChild;}
-function fmtTs(ts){if(!ts)return'';const d=new Date(ts);return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');}
+function fmtTs(ts){if(!ts)return'';const d=new Date(ts);const t=d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');const day=d.getDate().toString().padStart(2,'0');const mon=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][d.getMonth()];return`${t}, ${day} ${mon}`;}
+// Only camera-taken photos have a ts value; file-picked photos never receive one
+function _tsTag(ts){return ts?`<span style="display:inline-block;background:#e8f2f9;color:#006CAA;font-size:10px;font-weight:800;padding:1px 6px;border-radius:8px;letter-spacing:.2px">📷 ${fmtTs(ts)}</span>`:'';}
 function addFsCamera(iid,files){
   const iss=issues.find(i=>i.id===iid);if(!iss||!files)return;
   Array.from(files).forEach(f=>{
@@ -34466,6 +34471,7 @@ let _planImg=null,_zoom=1,_panX=0,_panY=0,_isDragging=false,_moved=false,_startX
 
 async function openPlanOverlay(planId){
   _activePlanId=planId;
+  _planImg=null; // clear stale image immediately so old plan can't interfere
   const plan=plans.find(p=>p.id===planId);if(!plan)return;
   const rec=await idbGet(planId);if(!rec)return;
   document.getElementById('plan-overlay').classList.remove('hide');
@@ -34474,7 +34480,10 @@ async function openPlanOverlay(planId){
   const tabs=document.getElementById('plan-tabs');
   tabs.innerHTML=plans.map(p=>`<button class="po-tab${p.id===planId?' active':''}" onclick="switchPlanTab(${p.id})">${e(p.name)}</button>`).join('');
   const img=new Image();
-  img.onload=()=>{_planImg=img;requestAnimationFrame(()=>{_fitPlan();_drawPlan();});};
+  img.onload=()=>{
+    // Guard against race: only apply if we're still showing this plan
+    if(_activePlanId===planId){_planImg=img;requestAnimationFrame(()=>{_fitPlan();_drawPlan();});}
+  };
   img.src=rec.du;
 }
 
@@ -34486,7 +34495,7 @@ function switchPlanTab(id){
 function closePlanOverlay(){
   document.getElementById('plan-overlay').classList.add('hide');
   document.getElementById('pin-assign-panel').classList.add('hide');
-  _pendingPin=null;_clearRetroPin();
+  _pendingPin=null;_pendingPinEdit=null;_editingPinId=null;_clearRetroPin();
   renderPlansBar();renderInlinePlan();
 }
 
@@ -34720,6 +34729,13 @@ document.addEventListener('DOMContentLoaded',()=>{
       requestAnimationFrame(()=>{_fitPlan();_drawPlan();});
     }
   });
+  // ESC key closes the plan overlay (desktop/keyboard users)
+  document.addEventListener('keydown',ev=>{
+    if(ev.key==='Escape'){
+      const overlay=document.getElementById('plan-overlay');
+      if(overlay&&!overlay.classList.contains('hide'))closePlanOverlay();
+    }
+  });
 });
 
 function _handleTap(cx,cy){
@@ -34806,7 +34822,8 @@ function activatePinPhoto(mode){
   document.getElementById('pin-assign-panel').classList.add('hide');
   _drawPlan();renderInlinePlan();saveSt();
   window._lastPinId=pin.id;
-  // Hint will be refreshed by onPinPhotoSelected once photo lands; show interim message now
+  // After photo is taken, panel will reopen so user can label the pin
+  _pendingPinEdit=pin.id;
   _showPlanReadyHint();
   _openPhotoInput(mode);
 }
@@ -34853,7 +34870,7 @@ function _clearRetroPin(){
 }
 
 function cancelPin(){
-  _pendingPin=null;_editingPinId=null;
+  _pendingPin=null;_editingPinId=null;_pendingPinEdit=null;
   _resetPanelToNewMode();
   document.getElementById('pin-assign-panel').classList.add('hide');
   _drawPlan();
@@ -34995,9 +35012,16 @@ function onPinPhotoSelected(evt){
         remaining--;
         if(remaining===0){
           saveSt();renderAll();_drawPlan();renderInlinePlan();
-          _refreshPinGallery(pin);
-          _showPlanReadyHint();
-          toast(files.length>1?`${files.length} photos added ✓`:'Photo added ✓');
+          // If this was a brand-new pin's first photo, reopen the panel so the user can label it
+          if(_pendingPinEdit===pin.id){
+            _pendingPinEdit=null;
+            const pinNum=pins.indexOf(pin)+1;
+            _openPinEdit(pin,pinNum);
+          } else {
+            _refreshPinGallery(pin);
+            _showPlanReadyHint();
+            toast(files.length>1?`${files.length} photos added ✓`:'Photo added ✓');
+          }
         }
       };im.src=ev.target.result;
     };rd.readAsDataURL(file);
