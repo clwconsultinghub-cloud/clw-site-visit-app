@@ -214,7 +214,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .pap-title{font-size:13px;font-weight:800;color:var(--clw-dark);margin-bottom:12px}
 .pap-row{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
 .pap-row label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--clw-mid)}
-.pap-row select,.pap-row input,.pap-row textarea{border:1.5px solid var(--brd);border-radius:6px;padding:7px 10px;font-size:13px;font-family:inherit;color:var(--clw-dark);width:100%}
+.pap-row select,.pap-row input,.pap-row textarea{border:1.5px solid var(--brd);border-radius:6px;padding:7px 10px;font-size:16px;font-family:inherit;color:var(--clw-dark);width:100%}
 .pap-row textarea{min-height:70px;resize:vertical}
 .pin-type-row{display:flex;gap:8px;margin-bottom:10px}
 .pin-type-btn{flex:1;padding:9px 12px;border-radius:8px;border:1.5px solid var(--brd);background:white;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .15s;text-align:center}
@@ -34277,11 +34277,21 @@ function renderAll(){
 
 function rPhotos(iss){
   const pp=pins.filter(p=>p.issueId===iss.id&&p.type==='photo'&&p.photos?.some(ph=>ph.du));
+  const notePins=pins.filter(p=>p.issueId===iss.id&&p.type==='note');
   // Suppress drag-drop photos that have been pinned to ANY issue (even if the pin was later moved)
   const pinnedPhotoIds=new Set(pins.filter(p=>p.sourcePhotoId!=null&&iss.photos.some(ph=>ph.id===p.sourcePhotoId)).map(p=>p.sourcePhotoId));
   const unpinnedPhotos=iss.photos.filter(ph=>!pinnedPhotoIds.has(ph.id));
-  if(!unpinnedPhotos.length&&!pp.length)return'';
+  if(!unpinnedPhotos.length&&!pp.length&&!notePins.length)return'';
   let lbIdx=0; // tracks position in the full photo list for lightbox navigation
+  const notePinsHtml=notePins.map(pin=>{
+    const pinNum=pins.indexOf(pin)+1;
+    return`<div class="pc2" style="flex-direction:column;justify-content:flex-start">
+      <div class="pf" style="padding:8px 10px;width:100%;box-sizing:border-box">
+        <div class="sr" style="margin-bottom:4px"><span style="color:#282828;font-weight:700">📍 P${pinNum} ✏️ Note</span></div>
+        <div style="font-size:12px;color:var(--clw-dark);white-space:pre-wrap;margin-bottom:6px">${e(pin.note||'(no note text)')}</div>
+        <button class="pd" onclick="delPin(${pin.id})">✕ Remove Pin</button>
+      </div>
+    </div>`;}).join('');
   return`<div class="pg">${unpinnedPhotos.map(ph=>{
     const i=lbIdx++;
     return`<div class="pc2">
@@ -34307,6 +34317,7 @@ function rPhotos(iss){
         ${pi===0?`<button class="pd" onclick="delPin(${pin.id})">✕ Remove Pin</button>`:`<button class="pd" onclick="delPinPhoto(${pin.id},${pi})">✕ Remove Photo</button>`}
       </div>
     </div>`;}).join('');}).join('')}
+  ${notePinsHtml}
   </div>`;
 }
 
@@ -34819,8 +34830,9 @@ function activatePinPhoto(mode){
     const issId=selEl?parseInt(selEl.value):0;
     validIssId=(!isNaN(issId)&&issId>0)?issId:null;
   }
+  const noteText=document.getElementById('pin-note-text')?.value||'';
   const pin={id:++pnseq,planId:_activePlanId,x:_pendingPin.x,y:_pendingPin.y,
-    issueId:validIssId,type:'photo',note:'',
+    issueId:validIssId,type:'photo',note:noteText,
     photos:[]};
   pins.push(pin);_pendingPin=null;
   document.getElementById('pin-assign-panel').classList.add('hide');
