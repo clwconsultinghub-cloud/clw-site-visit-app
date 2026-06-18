@@ -34896,11 +34896,15 @@ function _resetPanelToNewMode(){
   });
   _hideDropZone();
   const gal=document.getElementById('pin-photo-gallery');if(gal){gal.style.display='none';gal.innerHTML='';}
+  // Show type toggle for new pins
+  const tr=document.querySelector('.pin-type-row');if(tr)tr.style.display='';
 }
 
 function _openPinEdit(pin,pinNum){
   _editingPinId=pin.id;_pendingPin=null;
   _pendingPinType=pin.type;_pendingPhotoMode='add';
+  // Hide the Photo/Note type toggle in edit mode — type is already set, notes are always visible
+  const _typeRow=document.querySelector('.pin-type-row');if(_typeRow)_typeRow.style.display='none';
   // Populate issue select with current pin's issue pre-selected
   const sel=document.getElementById('pin-issue-select');
   sel.innerHTML='<option value="0">— General / no specific issue —</option>'+
@@ -34954,13 +34958,9 @@ function confirmPinAssign(){
     const pin=pins.find(p=>p.id===_editingPinId);
     if(pin){
       pin.issueId=validIssId;
-      const _noteVal=document.getElementById('pin-note-text')?.value||'';
-      if(_pendingPinType==='note'){
-        pin.type='note';pin.note=_noteVal;
-        // Never wipe existing photos — preserve them even if type switches to note
-      } else {
-        pin.type='photo';if(!pin.photos)pin.photos=[];pin.note=_noteVal;
-      }
+      // Always save note text; never change the pin's type in edit mode (type is fixed at creation)
+      pin.note=document.getElementById('pin-note-text')?.value||'';
+      if(pin.type==='photo'){if(!pin.photos)pin.photos=[];}
     }
     _droppedPhotoData=null;
     // Keep panel open so user can continue editing (add photos, change note, etc.)
