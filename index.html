@@ -34740,6 +34740,9 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 function _handleTap(cx,cy){
   if(!_planImg)return;
+  // If the pin panel is already open, ignore background taps to prevent accidental new pins
+  const _panel=document.getElementById('pin-assign-panel');
+  if(_panel&&!_panel.classList.contains('hide'))return;
   // Check if tapping near an existing pin — if so, open edit panel
   const planPins=pins.filter(p=>p.planId===_activePlanId);
   for(let i=0;i<planPins.length;i++){
@@ -34884,6 +34887,8 @@ function _resetPanelToNewMode(){
   if(t)t.textContent='📍 New Pin';
   if(c)c.textContent='Confirm Pin';
   if(d)d.classList.add('hide');
+  const _cancelBtn=document.querySelector('.pap-cancel');
+  if(_cancelBtn)_cancelBtn.textContent='Cancel';
   document.querySelectorAll('.pin-photo-opt').forEach(btn=>{
     if(btn.dataset.pmode==='take')btn.textContent='📷 Take Photo';
     if(btn.dataset.pmode==='add')btn.textContent='🖼 Add Photo';
@@ -34911,6 +34916,8 @@ function _openPinEdit(pin,pinNum){
   if(t)t.textContent=`📍 Edit Pin P${pinNum}`;
   if(c)c.textContent='Save Changes';
   if(d)d.classList.remove('hide');
+  const cancelBtn=document.querySelector('.pap-cancel');
+  if(cancelBtn)cancelBtn.textContent='Close';
   // Relabel photo buttons to "Add" variants
   document.querySelectorAll('.pin-photo-opt').forEach(btn=>{
     if(btn.dataset.pmode==='take')btn.textContent='📷 Add via Camera';
@@ -34953,9 +34960,9 @@ function confirmPinAssign(){
       }
     }
     _droppedPhotoData=null;
-    _editingPinId=null;_resetPanelToNewMode();
-    document.getElementById('pin-assign-panel').classList.add('hide');
+    // Keep panel open so user can continue editing (add photos, change note, etc.)
     _drawPlan();renderInlinePlan();renderAll();saveSt();
+    if(pin)_refreshPinGallery(pin);
     toast('Pin updated ✓');
     return;
   }
