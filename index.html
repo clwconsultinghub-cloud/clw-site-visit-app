@@ -34458,7 +34458,7 @@ async function openPlanOverlay(planId){
   const tabs=document.getElementById('plan-tabs');
   tabs.innerHTML=plans.map(p=>`<button class="po-tab${p.id===planId?' active':''}" onclick="switchPlanTab(${p.id})">${e(p.name)}</button>`).join('');
   const img=new Image();
-  img.onload=()=>{_planImg=img;_fitPlan();_drawPlan();};
+  img.onload=()=>{_planImg=img;requestAnimationFrame(()=>{_fitPlan();_drawPlan();});};
   img.src=rec.du;
 }
 
@@ -34477,7 +34477,10 @@ function closePlanOverlay(){
 function _fitPlan(){
   const wrap=document.getElementById('plan-canvas-wrap');
   const canvas=document.getElementById('plan-canvas');
-  const w=wrap.clientWidth,h=wrap.clientHeight;
+  if(!wrap||!canvas||!_planImg)return;
+  const w=wrap.clientWidth||wrap.offsetWidth;
+  const h=wrap.clientHeight||wrap.offsetHeight;
+  if(!w||!h)return; // overlay not yet rendered — caller should use requestAnimationFrame
   const crop=_planCrops[_activePlanId];
   const imgW=crop?(crop.x2-crop.x1)*_planImg.naturalWidth:_planImg.naturalWidth;
   const imgH=crop?(crop.y2-crop.y1)*_planImg.naturalHeight:_planImg.naturalHeight;
@@ -34629,14 +34632,40 @@ document.addEventListener('DOMContentLoaded',()=>{
     const sx=ev.offsetX,sy=ev.offsetY;
     _panX=sx+(_panX-sx)*f;_panY=sy+(_panY-sy)*f;_zoom*=f;_drawPlan();
   },{passive:false});
-  canvas.addEventListener('touchstart',ev=>{_touches=Array.from(ev.touches);_moved=false;},{ passive:true});
+  canvas.addEventListener('touchstart',ev=>{
+    _touches=Array.from(ev.touches);_moved=false;
+    // Check if touching near an existing pin — prepare to drag it
+    if(ev.touches.length===1&&_planImg){
+      const r=canvas.getBoundingClientRect();
+      const cx=ev.touches[0].clientX-r.left;
+      const cy=ev.touches[0].clientY-r.top;
+      const planPins=pins.filter(p=>p.planId===_activePlanId);
+      for(let i=0;i<planPins.length;i++){
+        const p=planPins[i];
+        const px=_panX+_overlayPinX(p.x)*_zoom;
+        const py=_panY+_overlayPinY(p.y)*_zoom;
+        if(Math.hypot(cx-px,cy-py)<=24){_draggingPin=p;_moved=false;return;}
+      }
+    }
+  },{passive:true});
   canvas.addEventListener('touchmove',ev=>{
     const t=Array.from(ev.touches);
     if(t.length===1&&_touches?.length===1){
       const dx=t[0].clientX-_touches[0].clientX,dy=t[0].clientY-_touches[0].clientY;
       if(Math.abs(dx)>3||Math.abs(dy)>3)_moved=true;
-      _panX+=dx;_panY+=dy;_drawPlan();
+      if(_draggingPin&&_planImg){
+        // Move the pin, not the plan
+        const r=canvas.getBoundingClientRect();
+        const _dp=_canvasToPin(t[0].clientX-r.left,t[0].clientY-r.top);
+        const _dc=_planCrops[_activePlanId];
+        _draggingPin.x=Math.max(_dc?_dc.x1:0,Math.min(_dc?_dc.x2:1,_dp.x));
+        _draggingPin.y=Math.max(_dc?_dc.y1:0,Math.min(_dc?_dc.y2:1,_dp.y));
+      } else {
+        _panX+=dx;_panY+=dy;
+      }
+      _drawPlan();
     } else if(t.length===2&&_touches?.length===2){
+      _draggingPin=null; // cancel pin drag if pinch gesture starts
       const d0=Math.hypot(_touches[0].clientX-_touches[1].clientX,_touches[0].clientY-_touches[1].clientY);
       const d1=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
       const f=d1/d0;const r=canvas.getBoundingClientRect();
@@ -34646,11 +34675,35 @@ document.addEventListener('DOMContentLoaded',()=>{
     _touches=t;_drawPlan();
   },{passive:true});
   canvas.addEventListener('touchend',ev=>{
+    if(_draggingPin){
+      if(_moved){saveSt();renderAll();renderInlinePlan();toast('Pin moved ✓');}
+      else{_openPinEdit(_draggingPin,pins.indexOf(_draggingPin)+1);}
+      _draggingPin=null;
+      return;
+    }
     if(!_moved&&ev.changedTouches.length===1){
       const r=canvas.getBoundingClientRect();
       _handleTap(ev.changedTouches[0].clientX-r.left,ev.changedTouches[0].clientY-r.top);
     }
   },{passive:true});
+
+  // Redraw plan canvas when returning from camera/background (iOS clears canvas on suspend)
+  document.addEventListener('visibilitychange',()=>{
+    if(document.visibilityState==='visible'){
+      const overlay=document.getElementById('plan-overlay');
+      if(overlay&&!overlay.classList.contains('hide')&&_activePlanId){
+        if(_planImg){requestAnimationFrame(()=>{_fitPlan();_drawPlan();});}
+        else{openPlanOverlay(_activePlanId);}
+      }
+    }
+  });
+  // Refit and redraw on orientation change / window resize
+  window.addEventListener('resize',()=>{
+    const overlay=document.getElementById('plan-overlay');
+    if(overlay&&!overlay.classList.contains('hide')&&_planImg){
+      requestAnimationFrame(()=>{_fitPlan();_drawPlan();});
+    }
+  });
 });
 
 function _handleTap(cx,cy){
@@ -34904,7 +34957,13 @@ function confirmPinAssign(){
 }
 
 function onPinPhotoSelected(evt){
-  const files=Array.from(evt.target.files||[]);if(!files.length)return;
+  const files=Array.from(evt.target.files||[]);
+  if(!files.length){
+    // User cancelled camera — redraw canvas in case iOS cleared it while in background
+    if(_planImg){requestAnimationFrame(()=>{_drawPlan();});}
+    else if(_activePlanId){openPlanOverlay(_activePlanId);}
+    return;
+  }
   const pinId=window._lastPinId;
   const pin=pins.find(p=>p.id===pinId);if(!pin)return;
   if(!pin.photos)pin.photos=[];
