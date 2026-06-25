@@ -558,7 +558,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
     <button onclick="clwCloseDriveBrowser()" style="background:none;border:none;color:white;font-size:18px;cursor:pointer;line-height:1;padding:0 2px">✕</button>
   </div>
   <div class="modal-body" style="padding:16px 20px;max-height:60vh;overflow-y:auto">
-    <p style="font-size:13px;color:var(--clw-mid);margin-bottom:14px;line-height:1.5">Fetches visits previously synced to your Google Drive so you can continue them on this device. Photos are re-imported automatically.</p>
+    <p style="font-size:13px;color:var(--clw-mid);margin-bottom:14px;line-height:1.5">Fetches visits previously synced to your Google Drive. After loading, you’ll be prompted to drop in your photo zip to restore photos.</p>
     <div id="drive-browser-status" style="text-align:center;padding:20px;color:var(--clw-mid);font-size:13px">
       <button class="btn-primary" onclick="clwFetchDriveList()" style="font-size:13px;padding:10px 22px">Fetch visits from Drive</button>
     </div>
@@ -34302,12 +34302,15 @@ function rPhotos(iss){
     </div>`;}).join('');
   return`<div class="pg">${unpinnedPhotos.map(ph=>{
     const i=lbIdx++;
+    const imgHtml=ph.du
+      ?`<img class="pt" src="${ph.du}" alt="" onclick="openIssueLightbox(${iss.id},${i})">`
+      :`<div class="pt" style="background:#f0f2f5;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:4px;cursor:default"><div style="font-size:22px;opacity:.35">📷</div><div style="font-size:10px;color:var(--clw-mid);font-weight:700;text-align:center">Photo missing<br>Upload zip to restore</div></div>`;
     return`<div class="pc2">
-      <img class="pt" src="${ph.du}" alt="" onclick="openIssueLightbox(${iss.id},${i})">
+      ${imgHtml}
       <div class="pf">
         <input class="pci" value="${e(ph.cap)}" placeholder="Caption…" oninput="ph_c(${iss.id},${ph.id},this.value)">
         ${ph.ts?`<div style="margin-bottom:2px">${_tsTag(ph.ts)}</div>`:''}
-        ${plans.length?`<button class="pd pd-pin" onclick="pinPhotoToMap(${iss.id},${ph.id})">📍 Pin to Plan</button>`:''}
+        ${ph.du&&plans.length?`<button class="pd pd-pin" onclick="pinPhotoToMap(${iss.id},${ph.id})">📍 Pin to Plan</button>`:''}
         <button class="pd" onclick="delPh(${iss.id},${ph.id})">✕ Remove</button>
       </div>
     </div>`;}).join('')}
@@ -36061,32 +36064,7 @@ async function clwSyncVisit(visitId) {
     if (rec?.du) await postFile(`plan_${pl.id}.jpg`, rec.du).catch(()=>{});
   }
 
-  // Collect all photo upload tasks then run up to 4 in parallel
-  const _photoTasks = [];
-  let pn = 1;
-  for (const pin of (visit.pins||[])) {
-    if (pin.type==='photo') {
-      const phs=(pin.photos||[]);
-      for(let pi=0;pi<phs.length;pi++){
-        if(phs[pi]?.du){
-          const fname=`pin_P${pn}${phs.length>1?String.fromCharCode(65+pi):'A'}.jpg`;
-          const du=phs[pi].du;
-          _photoTasks.push(()=>postFile(fname,du).catch(()=>{}));
-        }
-      }
-      pn++;
-    }
-  }
-  for (const iss of (visit.issues||[])) {
-    let n=1; for (const ph of (iss.photos||[])) {
-      if (ph.du) {
-        const fname=`finding_${iss.id}_photo_${n}.jpg`, du=ph.du;
-        _photoTasks.push(()=>postFile(fname,du).catch(()=>{}));
-      }
-      n++;
-    }
-  }
-  await _runWithConcurrency(_photoTasks, 4);
+  // Photos are handled separately via the photo zip workflow — sync is data-only (seconds, not minutes).
 
   // Sheets log row
   const f = visit.f || {};
@@ -36434,39 +36412,83 @@ async function downloadAllPhotos() {
   if (btn) { btn.disabled = true; btn.innerHTML = '<span>⏳</span> Preparing…'; }
   try {
     const zip = new JSZip();
+    const manifest = { visitId: currentVisitId, generated: new Date().toISOString(), photos: [] };
     let total = 0;
-    issues.forEach((iss, idx) => {
-      const issNum = idx + 1;
-      // Exclude photos that have been pinned (they'll appear via pin)
+
+    // ── Issue photos (unpinned) ──
+    for (const iss of issues) {
       const pinnedIds = new Set(
         pins.filter(p => p.sourcePhotoId != null && iss.photos.some(ph => ph.id === p.sourcePhotoId))
             .map(p => p.sourcePhotoId)
       );
-      const unpinned = iss.photos.filter(ph => !pinnedIds.has(ph.id));
-      const issuePins = pins.filter(p => p.issueId === iss.id && p.type === 'photo' && p.photos?.some(ph=>ph.du));
       let n = 1;
-      [...unpinned, ...issuePins.flatMap(p => p.photos||[])].forEach(ph => {
-        if (!ph?.du) return;
-        const ext = (ph.tp || 'jpeg').replace('jpg', 'jpeg');
-        const filename = `Issue ${issNum}-${String(n).padStart(3, '0')}.${ext}`;
+      for (const ph of iss.photos.filter(ph => !pinnedIds.has(ph.id))) {
+        if (!ph?.du) { n++; continue; }
+        const mime = ph.du.split(';')[0].replace('data:', '') || 'image/jpeg';
+        const ext  = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+        const filename = `finding_${iss.id}_photo_${n}.${ext}`;
         const b64 = ph.du.split(',')[1];
-        if (b64) { zip.file(filename, b64, { base64: true }); total++; n++; }
+        if (b64) {
+          zip.file(filename, b64, { base64: true });
+          manifest.photos.push({ file: filename, type: 'issue', issueId: iss.id, photoId: ph.id, n, mime });
+          total++; n++;
+        }
+      }
+    }
+
+    // ── Pin photos ──
+    let pn = 1;
+    for (const pin of pins.filter(p => p.type === 'photo')) {
+      const phs = (pin.photos || []).filter(ph => ph?.du);
+      phs.forEach((ph, pi) => {
+        const letter = String.fromCharCode(65 + pi);
+        const mime = ph.du.split(';')[0].replace('data:', '') || 'image/jpeg';
+        const ext  = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+        const filename = `pin_P${pn}${letter}.${ext}`;
+        const b64 = ph.du.split(',')[1];
+        if (b64) {
+          zip.file(filename, b64, { base64: true });
+          manifest.photos.push({ file: filename, type: 'pin', pinId: pin.id, pinNum: pn, photoIndex: pi, mime });
+          total++;
+        }
       });
-    });
+      if ((pin.photos || []).length) pn++;
+    }
+
+    // ── Plan images ──
+    for (const pl of plans) {
+      const rec = await dbGet('planImages', `v${currentVisitId}_p${pl.id}`).catch(() => null);
+      if (!rec?.du) continue;
+      const mime = rec.du.split(';')[0].replace('data:', '') || 'image/jpeg';
+      const ext  = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+      const filename = `plan_${pl.id}.${ext}`;
+      const b64 = rec.du.split(',')[1];
+      if (b64) {
+        zip.file(filename, b64, { base64: true });
+        manifest.photos.push({ file: filename, type: 'plan', planId: pl.id, mime });
+        total++;
+      }
+    }
+
     if (!total) { toast('No photos to download'); return; }
+
+    // Include manifest so the PC can match each photo back to its finding/pin/plan
+    zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+
     const blob = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
     a.href = url;
     const projTitle = document.getElementById('project-hdr-title')?.textContent?.trim() || 'Site Visit';
-    a.download = `${projTitle} – Photos.zip`;
+    const dateStr   = (currentVisit?.visitDate || new Date().toISOString().slice(0, 10));
+    a.download = `${projTitle} – ${dateStr} – Photos.zip`;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     toast(`✓ ${total} photo${total > 1 ? 's' : ''} downloaded`);
   } catch (ex) {
     toast('Download error: ' + ex.message, 5000);
   } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<span>⬇️</span> Download Photos'; }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span>⬇️</span> Save Photos'; }
   }
 }
 
@@ -36558,4 +36580,362 @@ async function clwFetchDriveList() {
           ${counts ? `<div style="font-size:11px;color:var(--clw-blue);margin-top:1px;font-weight:700">${counts}</div>` : ''}
           <div style="font-size:10px;color:#aaa;margin-top:1px">${synced}</div>
         </div>
-        <button 
+        <button class="btn-primary" style="font-size:12px;padding:7px 14px;white-space:nowrap;flex-shrink:0"
+          onclick="clwImportVisit(_driveVisits[${v._idx}], this)">Import</button>
+      </div>`;
+    }).join('');
+    return `<div style="background:white;border:1.5px solid var(--brd);border-radius:var(--r);padding:12px 14px;box-shadow:var(--sh)">
+      <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--clw-blue);margin-bottom:4px">${e(proj)}</div>
+      ${rows}
+    </div>`;
+  }).join('');
+}
+
+// ── Import a single visit from Drive into IndexedDB ──────
+async function clwImportVisit(meta, btn) {
+  btn.disabled = true;
+  btn.textContent = '⏳';
+
+  const folder = encodeURIComponent(CLW_GOOGLE.FOLDER_ID || '');
+  const baseUrl = CLW_GOOGLE.SCRIPT_URL
+    + '?folder='  + folder
+    + '&project=' + encodeURIComponent(meta.project)
+    + '&date='    + encodeURIComponent(meta.date)
+    + '&visitId=' + encodeURIComponent(meta.visitId)
+    + (meta.fileId ? '&fileId=' + encodeURIComponent(meta.fileId) : '');
+
+  // 1. Fetch visit JSON
+  let visitData;
+  try {
+    const resp = await fetch(baseUrl + '&action=getVisit');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const json = await resp.json();
+    if (json.error) throw new Error(json.error);
+    visitData = json.visit;
+  } catch(err) {
+    btn.disabled = false; btn.textContent = 'Import';
+    toast('Could not fetch visit data: ' + err.message, 5000);
+    return;
+  }
+
+  // 2. Find or create project
+  const allProjects = await dbGetAll('projects');
+  let project = allProjects.find(p => p.name === meta.project);
+  if (!project) {
+    const pid = await dbPut('projects', {
+      name: meta.project,
+      client: visitData.f?.cli || visitData.client || '',
+      address: visitData.f?.addr || visitData.address || '',
+      ref: visitData.f?.ref || visitData.clwRef || '',
+      createdAt: Date.now(), updatedAt: Date.now()
+    });
+    project = await dbGet('projects', pid);
+  }
+
+  // 3. Strip placeholder text from photos — we'll re-fetch them
+  const cleanVisit = JSON.parse(JSON.stringify(visitData));
+  cleanVisit.projectId = project.id;
+  cleanVisit.updatedAt = Date.now();
+  cleanVisit.importedFromDrive = true;
+  delete cleanVisit.id; // Let IndexedDB assign a new local ID
+  // Clear photo blobs (placeholders from sync)
+  for (const iss of (cleanVisit.issues || [])) {
+    for (const ph of (iss.photos || [])) { ph.du = ''; }
+  }
+  for (const pin of (cleanVisit.pins || [])) {
+    if(pin.photo&&!pin.photos){pin.photos=pin.photo.du?[pin.photo]:[];delete pin.photo;}
+    for (const ph of (pin.photos||[])) { ph.du = ''; }
+  }
+
+  // 4. Save visit record
+  const newVisitId = await dbPut('visits', cleanVisit);
+
+  // 5. Count photos to display in upload modal
+  const totalPhotos = (cleanVisit.plans || []).length
+    + (cleanVisit.pins  || []).reduce((s,p)=>s+(p.type==='photo'?(p.photos||[]).length:0),0)
+    + (cleanVisit.issues|| []).reduce((s, iss) => s + (iss.photos||[]).length, 0);
+
+  btn.disabled = false;
+  btn.textContent = '✓ Done';
+  clwCloseDriveBrowser();
+
+  // 6. Show photo upload modal (skip straight to project if visit has no photos)
+  if (totalPhotos > 0) {
+    clwOpenPhotoUpload(newVisitId, project.id, totalPhotos);
+  } else {
+    await openProject(project.id);
+  }
+}
+
+// ── Re-fetch photos from Drive and write to IndexedDB ────
+async function clwRefetchPhotos(baseUrl, newVisitId, onProgress) {
+  // Fetch one photo file as a data URL via Apps Script
+  async function fetchPhoto(filename) {
+    const url = baseUrl + '&action=getPhoto&filename=' + encodeURIComponent(filename);
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' for ' + filename);
+    const json = await resp.json();
+    if (json.error) throw new Error(json.error);
+    return json.data || null;
+  }
+
+  // Load visit from DB
+  const v = await dbGet('visits', newVisitId);
+  if (!v) return;
+
+  // Count total for progress reporting
+  const total = (v.plans||[]).length
+    + (v.pins||[]).reduce((s,p)=>s+(p.type==='photo'?(p.photos||[]).length:0),0)
+    + (v.issues||[]).reduce((s, iss) => s + (iss.photos||[]).length, 0);
+  let done = 0, failed = 0;
+
+  const tick = () => { done++; if (onProgress) onProgress(done, total); };
+
+  // Plan images — stored separately in planImages store
+  for (const pl of (v.plans || [])) {
+    try {
+      const du = await fetchPhoto('plan_' + pl.id + '.jpg');
+      if (du) { await dbPut('planImages', { key: 'v' + newVisitId + '_p' + pl.id, du }); }
+    } catch(err) { console.warn('Plan photo failed:', err.message); failed++; }
+    tick();
+  }
+
+  // Pinned photos (P1A, P1B… matching sync order) — stored in visit record
+  let pn = 1;
+  for (const pin of (v.pins || [])) {
+    if (pin.type === 'photo') {
+      if(!pin.photos)pin.photos=[];
+      for(let pi=0;pi<pin.photos.length;pi++){
+        try {
+          // Try new multi-photo naming first, fall back to legacy single-photo name for pi===0
+          let du = await fetchPhoto(`pin_P${pn}${String.fromCharCode(65+pi)}.jpg`).catch(()=>null);
+          if(!du && pi===0) du = await fetchPhoto(`pin_P${pn}.jpg`).catch(()=>null);
+          if(du) pin.photos[pi].du = du;
+        } catch(err) { console.warn('Pin photo P'+pn+String.fromCharCode(65+pi)+' failed:', err.message); failed++; }
+        tick();
+      }
+      pn++;
+    }
+  }
+
+  // Issue photos — stored in visit record
+  for (const iss of (v.issues || [])) {
+    let n = 1;
+    for (const ph of (iss.photos || [])) {
+      try {
+        const du = await fetchPhoto('finding_' + iss.id + '_photo_' + n + '.jpg');
+        if (du) { ph.du = du; }
+      } catch(err) { console.warn('Issue photo failed:', err.message); failed++; }
+      tick();
+      n++;
+    }
+  }
+
+  // Save updated visit record (now contains pin + issue photo data)
+  await dbPut('visits', v);
+
+  if (failed > 0) throw new Error((done - failed) + ' photos loaded, ' + failed + ' failed — check console for details');
+}
+</script>
+
+<!-- STAGE 2: REVIEW & CAPTION SCREEN -->
+<div id="screen-review" class="screen">
+  <div class="app-hdr">
+    <div class="hdr-l">
+      <button class="back-btn" onclick="closeReviewScreen()">&#8592; Back to Visit</button>
+      <span class="hdr-title">Review &amp; Caption Photos</span>
+    </div>
+    <div id="review-progress" class="sync-status sync-saving">0 / 0 captioned</div>
+  </div>
+  <div class="main">
+    <p style="font-size:13px;color:var(--clw-mid);margin-bottom:20px;line-height:1.6">
+      Add a caption to each photo before generating your report. Changes save automatically.
+    </p>
+    <div id="review-grid" style="display:flex;flex-direction:column;gap:12px"></div>
+    <div style="height:40px"></div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════════════
+     PHOTO UPLOAD MODAL (appears after loading a visit from Drive)
+════════════════════════════════════════════════════════════ -->
+<div id="modal-photo-upload" class="modal hide" style="max-width:480px;width:92vw">
+  <div class="modal-hdr">📷 Upload Photos</div>
+  <div class="modal-body" style="padding:20px;gap:12px">
+    <p id="photo-upload-desc" style="font-size:13px;color:var(--clw-mid);line-height:1.6;margin:0">
+      Visit data loaded. Drop in the photo zip you saved on site to restore all photos.
+    </p>
+    <div id="photo-drop-zone"
+      style="border:2.5px dashed var(--clw-blue);border-radius:10px;padding:40px 20px;text-align:center;cursor:pointer;transition:background .15s;background:rgba(0,108,170,.04)"
+      onclick="document.getElementById('photo-zip-input').click()"
+      ondragover="event.preventDefault();this.style.background='rgba(0,108,170,.12)'"
+      ondragleave="this.style.background='rgba(0,108,170,.04)'"
+      ondrop="event.preventDefault();this.style.background='rgba(0,108,170,.04)';clwHandlePhotoDrop(event)">
+      <div style="font-size:40px;margin-bottom:10px">📦</div>
+      <div style="font-size:14px;font-weight:800;color:var(--clw-blue);margin-bottom:4px">Drop photo zip here</div>
+      <div style="font-size:12px;color:var(--clw-mid)">or click to browse for the file</div>
+    </div>
+    <div id="photo-upload-progress" style="display:none;padding:4px 0"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn-cancel" onclick="clwSkipPhotoUpload()">Skip — do later</button>
+  </div>
+</div>
+<div id="modal-photo-upload-backdrop" class="modal-backdrop hide"></div>
+<input type="file" id="photo-zip-input" accept=".zip,application/zip" style="display:none" onchange="clwHandlePhotoFileInput(event)">
+
+<script>
+// ── Photo upload modal state ───────────────────────────────────────────
+let _pendingPhotoVisitId   = null;
+let _pendingPhotoProjectId = null;
+
+function clwOpenPhotoUpload(visitId, projectId, photoCount) {
+  _pendingPhotoVisitId   = visitId;
+  _pendingPhotoProjectId = projectId;
+  const desc = document.getElementById('photo-upload-desc');
+  if (desc) {
+    const c = photoCount > 0 ? ` (${photoCount} photo${photoCount !== 1 ? 's' : ''})` : '';
+    desc.textContent = `Visit data loaded. Drop in the photo zip you saved on site to restore all photos${c}.`;
+  }
+  document.getElementById('photo-upload-progress').style.display = 'none';
+  document.getElementById('photo-drop-zone').style.display = '';
+  document.getElementById('modal-photo-upload').classList.remove('hide');
+  document.getElementById('modal-photo-upload-backdrop').classList.remove('hide');
+}
+
+function clwClosePhotoUpload() {
+  document.getElementById('modal-photo-upload').classList.add('hide');
+  document.getElementById('modal-photo-upload-backdrop').classList.add('hide');
+}
+
+async function clwSkipPhotoUpload() {
+  clwClosePhotoUpload();
+  const pid = _pendingPhotoProjectId;
+  _pendingPhotoVisitId = null; _pendingPhotoProjectId = null;
+  if (pid) await openProject(pid);
+}
+
+// ── Drag-drop and file input handlers ───────────────────────────────
+function clwHandlePhotoDrop(event) {
+  const file = event.dataTransfer.files[0];
+  if (file) clwProcessPhotoZip(file);
+}
+function clwHandlePhotoFileInput(event) {
+  const file = event.target.files[0];
+  if (file) clwProcessPhotoZip(file);
+  event.target.value = '';
+}
+
+async function clwProcessPhotoZip(file) {
+  if (!_pendingPhotoVisitId) { toast('No visit selected', 3000); return; }
+  const progressEl = document.getElementById('photo-upload-progress');
+  const dropZone   = document.getElementById('photo-drop-zone');
+  dropZone.style.display = 'none';
+  progressEl.style.display = '';
+  progressEl.innerHTML = '<div style="font-size:13px;color:var(--clw-mid);text-align:center;padding:8px 0">⏳ Reading zip…</div>';
+  try {
+    const result = await importPhotosFromZip(_pendingPhotoVisitId, file, (done, total) => {
+      const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+      progressEl.innerHTML = `
+        <div style="font-size:13px;font-weight:700;color:var(--clw-dark);text-align:center;margin-bottom:10px">
+          📷 Importing ${done} / ${total} photos…
+        </div>
+        <div style="background:#e0e8f0;border-radius:20px;height:8px;overflow:hidden">
+          <div style="background:var(--clw-blue);height:100%;width:${pct}%;transition:width .25s;border-radius:20px"></div>
+        </div>`;
+    });
+    progressEl.innerHTML = `<div style="font-size:14px;font-weight:800;color:#16a34a;text-align:center;padding:8px 0">✓ ${result.imported} photo${result.imported !== 1 ? 's' : ''} restored</div>`;
+    await new Promise(r => setTimeout(r, 900));
+    clwClosePhotoUpload();
+    const pid = _pendingPhotoProjectId;
+    _pendingPhotoVisitId = null; _pendingPhotoProjectId = null;
+    if (pid) await openProject(pid);
+  } catch (err) {
+    progressEl.innerHTML = `<div style="font-size:13px;color:#c00;text-align:center;padding:8px 0">⚠ ${err.message}</div>`;
+    dropZone.style.display = '';
+    toast('Import failed: ' + err.message, 5000);
+  }
+}
+
+// ── Core zip import ─────────────────────────────────────────────────
+async function importPhotosFromZip(visitId, file, onProgress) {
+  const zip   = await new JSZip().loadAsync(file);
+  const visit = await dbGet('visits', visitId);
+  if (!visit) throw new Error('Visit not found in local storage');
+
+  let manifest = null;
+  if (zip.files['manifest.json']) {
+    try { manifest = JSON.parse(await zip.files['manifest.json'].async('string')); }
+    catch(e) { manifest = null; }
+  }
+
+  let imported = 0;
+
+  if (manifest) {
+    // Manifest-based: uses exact IDs recorded at download time
+    const entries = (manifest.photos || []).filter(e => zip.files[e.file]);
+    const total   = entries.length;
+    let done = 0;
+    for (const entry of entries) {
+      const b64  = await zip.files[entry.file].async('base64');
+      const mime = entry.mime || 'image/jpeg';
+      const du   = `data:${mime};base64,${b64}`;
+      if (entry.type === 'issue') {
+        const iss = (visit.issues || []).find(i => i.id === entry.issueId);
+        const ph  = iss && (iss.photos || []).find(p => p.id === entry.photoId);
+        if (ph) { ph.du = du; imported++; }
+      } else if (entry.type === 'pin') {
+        const pin = (visit.pins || []).find(p => p.id === entry.pinId);
+        if (pin && pin.photos && pin.photos[entry.photoIndex] !== undefined) {
+          pin.photos[entry.photoIndex].du = du; imported++;
+        }
+      } else if (entry.type === 'plan') {
+        await dbPut('planImages', { key: `v${visitId}_p${entry.planId}`, du });
+        imported++;
+      }
+      done++; if (onProgress) onProgress(done, total);
+    }
+  } else {
+    // Filename-based fallback (compatible with Drive sync naming convention)
+    const fileNames = Object.keys(zip.files).filter(f => !zip.files[f].dir && f !== 'manifest.json');
+    const total     = fileNames.length;
+    let done = 0;
+    const issueMap  = {};
+    for (const iss of (visit.issues || [])) issueMap[iss.id] = iss;
+    const photoPins = (visit.pins || []).filter(p => p.type === 'photo');
+    for (const fname of fileNames) {
+      const b64  = await zip.files[fname].async('base64');
+      const du   = `data:image/jpeg;base64,${b64}`;
+      const base = fname.split('/').pop();
+      let m;
+      if ((m = base.match(/^finding_(\d+)_photo_(\d+)\./))) {
+        const iss = issueMap[parseInt(m[1])];
+        const ph  = iss && iss.photos[parseInt(m[2]) - 1];
+        if (ph) { ph.du = du; imported++; }
+      } else if ((m = base.match(/^pin_P(\d+)([A-Z]?)\./))) {
+        const pin   = photoPins[parseInt(m[1]) - 1];
+        const phIdx = m[2] ? m[2].charCodeAt(0) - 65 : 0;
+        if (pin && pin.photos && pin.photos[phIdx] !== undefined) {
+          pin.photos[phIdx].du = du; imported++;
+        }
+      } else if ((m = base.match(/^plan_(\d+)\./))) {
+        await dbPut('planImages', { key: `v${visitId}_p${parseInt(m[1])}`, du });
+        imported++;
+      }
+      done++; if (onProgress) onProgress(done, total);
+    }
+  }
+
+  await dbPut('visits', visit);
+
+  // Refresh in-memory state if this visit is currently open
+  if (typeof currentVisitId !== 'undefined' && currentVisitId === visitId) {
+    issues = visit.issues || [];
+    pins   = visit.pins   || [];
+    renderAll();
+  }
+  return { imported };
+}
+</script>
+</body>
+</html>
