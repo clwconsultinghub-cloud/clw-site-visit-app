@@ -126,7 +126,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .dz-txt strong{color:var(--clw-blue)}
 .pg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
 .pc2{border:1.5px solid var(--brd);border-radius:var(--r);overflow:hidden;width:auto;background:white;box-shadow:var(--sh)}
-.pt{width:100%;height:100px;object-fit:cover;display:block;background:#eee}
+.pt{width:100%;aspect-ratio:4/3;object-fit:cover;display:block;background:#eee}
 .pf{padding:7px 8px;display:flex;flex-direction:column;gap:5px}
 .pci{border:1px solid var(--brd);border-radius:5px;padding:5px 8px;font-size:12px;font-family:inherit;width:100%}
 .pci:focus{outline:none;border-color:var(--clw-blue)}
@@ -210,7 +210,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 #pin-hover-tip{position:fixed;background:rgba(30,30,30,.92);color:white;font-size:12px;font-weight:600;font-family:'Mulish',Arial,sans-serif;padding:7px 11px;border-radius:8px;pointer-events:none;z-index:9999;max-width:260px;line-height:1.5;display:none;box-shadow:0 4px 14px rgba(0,0,0,.35)}
 #plan-hint{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.6);color:white;padding:7px 18px;border-radius:20px;font-size:12px;font-weight:700;pointer-events:none;white-space:nowrap}
 /* ── Pin assign panel ── */
-.pin-assign-panel{position:absolute;bottom:0;left:0;right:0;background:white;border-top:2px solid var(--clw-blue);padding:16px;z-index:10;box-shadow:0 -4px 20px rgba(0,0,0,.3)}
+.pin-assign-panel{flex-shrink:0;background:white;border-top:2px solid var(--clw-blue);padding:16px;box-shadow:0 -4px 20px rgba(0,0,0,.3);overflow-y:auto;max-height:50vh}
 .pap-title{font-size:13px;font-weight:800;color:var(--clw-dark);margin-bottom:12px}
 .pap-row{display:flex;flex-direction:column;gap:4px;margin-bottom:10px}
 .pap-row label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--clw-mid)}
@@ -324,6 +324,12 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 #screen-visit .app-hdr{flex-wrap:wrap;padding:8px 16px;gap:6px}
 #screen-visit .hdr-l{flex:1 0 100%;gap:8px}
 #screen-visit .visit-hdr-actions{width:100%;gap:8px}}
+/* Wide screens / PC: 3-column photo grid, wider modals */
+@media(min-width:900px){
+.pg{grid-template-columns:1fr 1fr 1fr}
+.modal{width:min(560px,calc(100vw - 48px))}
+.fgrid{grid-template-columns:1fr 1fr 1fr}
+.fgrid .full{grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -534,41 +540,41 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
     <canvas id="plan-canvas"></canvas>
     <div id="plan-hint-edit" style="position:absolute;bottom:46px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.62);color:white;padding:7px 16px;border-radius:20px;font-size:12px;font-weight:700;text-align:center;pointer-events:none;white-space:nowrap;z-index:10">Tap on a pin to edit the pin</div>
     <div id="plan-hint">Tap on the plan to drop a pin</div>
-    <!-- Pin assign panel -->
     <div id="move-pin-hint">✋ Tap &amp; drag the pin to move it<br><small style="font-weight:600;opacity:.85">Tap anywhere else when done</small></div>
-    <div id="pin-assign-panel" class="pin-assign-panel hide">
-      <div class="pap-title" id="pap-title">📍 New Pin</div>
-      <div class="pap-row">
-        <label>Link to Issue (optional)</label>
-        <select id="pin-issue-select" onchange="onPinIssueChange()"></select>
-        <input id="pin-new-issue-input" class="pap-new-issue hide" placeholder="Type new issue title…">
+  </div>
+  <!-- Pin assign panel — sits below the canvas in the flex column so it doesn't overlap the plan -->
+  <div id="pin-assign-panel" class="pin-assign-panel hide">
+    <div class="pap-title" id="pap-title">📍 New Pin</div>
+    <div class="pap-row">
+      <label>Link to Issue (optional)</label>
+      <select id="pin-issue-select" onchange="onPinIssueChange()"></select>
+      <input id="pin-new-issue-input" class="pap-new-issue hide" placeholder="Type new issue title…">
+    </div>
+    <div id="pin-photo-gallery" class="pin-photo-gallery" style="display:none"></div>
+    <div id="pin-merge-row" class="pap-row hide" style="background:rgba(0,108,170,.06);border-radius:8px;padding:8px 10px;margin-bottom:4px">
+      <label style="color:var(--clw-blue);font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.5px">⊕ Merge with another pin</label>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
+        <select id="pin-merge-select" style="flex:1;padding:6px 8px;border-radius:7px;border:1.5px solid var(--brd);font-size:12px;font-weight:600;font-family:inherit"></select>
+        <button onclick="mergePins()" style="background:var(--clw-blue);color:white;border:none;padding:6px 14px;border-radius:16px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">Merge ✓</button>
       </div>
-      <div id="pin-photo-gallery" class="pin-photo-gallery" style="display:none"></div>
-      <div id="pin-merge-row" class="pap-row hide" style="background:rgba(0,108,170,.06);border-radius:8px;padding:8px 10px;margin-bottom:4px">
-        <label style="color:var(--clw-blue);font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.5px">⊕ Merge with another pin</label>
-        <div style="display:flex;gap:8px;align-items:center;margin-top:4px">
-          <select id="pin-merge-select" style="flex:1;padding:6px 8px;border-radius:7px;border:1.5px solid var(--brd);font-size:12px;font-weight:600;font-family:inherit"></select>
-          <button onclick="mergePins()" style="background:var(--clw-blue);color:white;border:none;padding:6px 14px;border-radius:16px;font-size:12px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap">Merge ✓</button>
-        </div>
-        <div style="font-size:10px;color:var(--clw-mid);margin-top:4px">Photos from the selected pin will be combined into this one and that pin removed.</div>
-      </div>
-      <div id="pin-photo-opts" class="pin-photo-opts">
-        <button class="pin-photo-opt active" data-pmode="take" onclick="activatePinPhoto('take')">📷 Take Photo</button>
-        <button class="pin-photo-opt" data-pmode="add" onclick="activatePinPhoto('add')">🖼 Add Photo</button>
-        <button class="pin-photo-opt" data-pmode="drop" onclick="activatePinPhoto('drop')">🖱 Drop Photo</button>
-      </div>
-      <div id="pin-drop-zone" class="pin-drop-zone">Drop image here</div>
-      <div id="pin-note-area" class="pap-row">
-        <label>Notes (optional)</label>
-        <textarea id="pin-note-text" rows="2" placeholder="Describe what you observed at this location…"></textarea>
-      </div>
-      <div class="pap-actions">
-        <button class="pap-cancel" onclick="cancelPin()">Cancel</button>
-        <button class="pap-delete hide" id="pap-delete-btn" onclick="_deletePinFromEdit()">🗑 Delete</button>
-        <button class="pap-movepin hide" id="pap-movepin-btn" onclick="enterPinMoveMode()">✋ Move</button>
-        <button class="pap-addpin" id="pap-addpin-btn" onclick="addAnotherPin()">＋ Pin</button>
-        <button class="pap-confirm" id="pap-confirm-btn" onclick="confirmPinAssign()">Done</button>
-      </div>
+      <div style="font-size:10px;color:var(--clw-mid);margin-top:4px">Photos from the selected pin will be combined into this one and that pin removed.</div>
+    </div>
+    <div id="pin-photo-opts" class="pin-photo-opts">
+      <button class="pin-photo-opt active" data-pmode="take" onclick="activatePinPhoto('take')">📷 Take Photo</button>
+      <button class="pin-photo-opt" data-pmode="add" onclick="activatePinPhoto('add')">🖼 Add Photo</button>
+      <button class="pin-photo-opt" data-pmode="drop" onclick="activatePinPhoto('drop')">🖱 Drop Photo</button>
+    </div>
+    <div id="pin-drop-zone" class="pin-drop-zone">Drop image here</div>
+    <div id="pin-note-area" class="pap-row">
+      <label>Notes (optional)</label>
+      <textarea id="pin-note-text" rows="2" placeholder="Describe what you observed at this location…"></textarea>
+    </div>
+    <div class="pap-actions">
+      <button class="pap-cancel" onclick="cancelPin()">Cancel</button>
+      <button class="pap-delete hide" id="pap-delete-btn" onclick="_deletePinFromEdit()">🗑 Delete</button>
+      <button class="pap-movepin hide" id="pap-movepin-btn" onclick="enterPinMoveMode()">✋ Move</button>
+      <button class="pap-addpin" id="pap-addpin-btn" onclick="addAnotherPin()">＋ Pin</button>
+      <button class="pap-confirm" id="pap-confirm-btn" onclick="confirmPinAssign()">Done</button>
     </div>
   </div>
 </div>
@@ -35015,6 +35021,14 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(overlay&&!overlay.classList.contains('hide'))closePlanOverlay();
     }
   });
+  // Refit the plan canvas whenever the pin panel shows or hides,
+  // so the plan fills only the space above the panel (not behind it).
+  const _pinPanel=document.getElementById('pin-assign-panel');
+  if(_pinPanel){
+    new MutationObserver(()=>{
+      if(_planImg)requestAnimationFrame(()=>{_fitPlan();_drawPlan();});
+    }).observe(_pinPanel,{attributes:true,attributeFilter:['class']});
+  }
 });
 
 function _handleTap(cx,cy){
@@ -36539,6 +36553,156 @@ async function downloadAllPhotos() {
   }
 }
 
+// ── Lightbox ─────────────────────────────────────────────────────────────────
+(function(){
+  let _imgs=[], _cur=0, _scale=1, _tx=0, _ty=0;
+  let _dragging=false, _dragStartX=0, _dragStartY=0, _baseTx=0, _baseTy=0;
+  let _lastTap=0, _pinchStartDist=0, _pinchStartScale=1;
+  const lb    = ()=>document.getElementById('lightbox');
+  const lbImg = ()=>document.getElementById('lightbox-img');
+  const lbCtr = ()=>document.getElementById('lb-counter');
+  const lbHint= ()=>document.getElementById('lightbox-hint');
+  const lbPrevBtn=()=>document.getElementById('lb-prev');
+  const lbNextBtn=()=>document.getElementById('lb-next');
+
+  function applyTransform(){
+    const img=lbImg();
+    if(!img)return;
+    img.style.transform=`translate(${_tx}px,${_ty}px) scale(${_scale})`;
+  }
+
+  function resetTransform(){
+    _scale=1;_tx=0;_ty=0;
+    applyTransform();
+  }
+
+  function loadImage(idx){
+    const img=lbImg();
+    if(!img)return;
+    resetTransform();
+    img.src=_imgs[idx]||'';
+    const ctr=lbCtr();
+    if(ctr){
+      if(_imgs.length>1){ctr.style.display='';ctr.textContent=`${idx+1} / ${_imgs.length}`;}
+      else{ctr.style.display='none';}
+    }
+    const pp=lbPrevBtn(), np=lbNextBtn();
+    if(pp)pp.style.display=_imgs.length>1?'':'none';
+    if(np)np.style.display=_imgs.length>1?'':'none';
+  }
+
+  window.openLightbox=function(srcsOrSrc, startIdx){
+    if(Array.isArray(srcsOrSrc)){_imgs=srcsOrSrc.filter(Boolean);}
+    else{_imgs=[srcsOrSrc].filter(Boolean);}
+    _cur=Math.max(0,Math.min(startIdx||0,_imgs.length-1));
+    if(!_imgs.length)return;
+    const el=lb();if(!el)return;
+    el.style.display='flex';
+    document.body.style.overflow='hidden';
+    loadImage(_cur);
+  };
+
+  window.closeLightbox=function(){
+    const el=lb();if(!el)return;
+    el.style.display='none';
+    document.body.style.overflow='';
+    lbImg().src='';
+    resetTransform();
+    _imgs=[];
+  };
+
+  window.lbPrev=function(){
+    if(!_imgs.length)return;
+    _cur=(_cur-1+_imgs.length)%_imgs.length;
+    loadImage(_cur);
+  };
+
+  window.lbNext=function(){
+    if(!_imgs.length)return;
+    _cur=(_cur+1)%_imgs.length;
+    loadImage(_cur);
+  };
+
+  // Keyboard navigation
+  document.addEventListener('keydown',function(e){
+    const el=lb();if(!el||el.style.display==='none')return;
+    if(e.key==='Escape')window.closeLightbox();
+    else if(e.key==='ArrowLeft')window.lbPrev();
+    else if(e.key==='ArrowRight')window.lbNext();
+  });
+
+  // Mouse wheel zoom
+  document.addEventListener('wheel',function(e){
+    const el=lb();if(!el||el.style.display==='none')return;
+    e.preventDefault();
+    const delta=e.deltaY<0?1.15:1/1.15;
+    _scale=Math.max(0.5,Math.min(8,_scale*delta));
+    applyTransform();
+  },{passive:false});
+
+  // Mouse drag to pan
+  document.addEventListener('mousedown',function(e){
+    const el=lb();if(!el||el.style.display==='none')return;
+    const tgt=e.target;
+    if(tgt.classList.contains('lightbox-close')||tgt.classList.contains('lb-arrow'))return;
+    _dragging=true;_dragStartX=e.clientX;_dragStartY=e.clientY;_baseTx=_tx;_baseTy=_ty;
+  });
+  document.addEventListener('mousemove',function(e){
+    if(!_dragging)return;
+    _tx=_baseTx+(e.clientX-_dragStartX);
+    _ty=_baseTy+(e.clientY-_dragStartY);
+    applyTransform();
+  });
+  document.addEventListener('mouseup',function(e){
+    if(!_dragging)return;
+    _dragging=false;
+    // If barely moved, treat as click — if on backdrop, close
+    const dx=Math.abs(e.clientX-_dragStartX), dy=Math.abs(e.clientY-_dragStartY);
+    if(dx<5&&dy<5){
+      const tgt=e.target;
+      if(tgt===lb()||tgt.classList.contains('lightbox-img-wrap'))window.closeLightbox();
+    }
+  });
+
+  // Touch: pinch zoom + drag + double-tap reset
+  document.addEventListener('touchstart',function(e){
+    const el=lb();if(!el||el.style.display==='none')return;
+    if(e.touches.length===1){
+      const t=e.touches[0];
+      _dragStartX=t.clientX;_dragStartY=t.clientY;_baseTx=_tx;_baseTy=_ty;
+      _dragging=true;
+      // Double-tap detection
+      const now=Date.now();
+      if(now-_lastTap<300){resetTransform();}
+      _lastTap=now;
+    } else if(e.touches.length===2){
+      _dragging=false;
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      _pinchStartDist=Math.hypot(dx,dy);
+      _pinchStartScale=_scale;
+    }
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    const el=lb();if(!el||el.style.display==='none')return;
+    if(e.touches.length===1&&_dragging){
+      const t=e.touches[0];
+      _tx=_baseTx+(t.clientX-_dragStartX);
+      _ty=_baseTy+(t.clientY-_dragStartY);
+      applyTransform();
+      e.preventDefault();
+    } else if(e.touches.length===2){
+      const dx=e.touches[0].clientX-e.touches[1].clientX;
+      const dy=e.touches[0].clientY-e.touches[1].clientY;
+      const dist=Math.hypot(dx,dy);
+      _scale=Math.max(0.5,Math.min(8,_pinchStartScale*(dist/_pinchStartDist)));
+      applyTransform();
+      e.preventDefault();
+    }
+  },{passive:false});
+  document.addEventListener('touchend',function(){_dragging=false;},{passive:true});
+})();
+
 </script>
 
 <!-- ══════════════════════════════════════════════════════════
@@ -36700,133 +36864,4 @@ async function clwImportVisit(meta, btn) {
   // 5. Count photos to display in upload modal
   const totalPhotos = (cleanVisit.plans || []).length
     + (cleanVisit.pins  || []).reduce((s,p)=>s+(p.type==='photo'?(p.photos||[]).length:0),0)
-    + (cleanVisit.issues|| []).reduce((s, iss) => s + (iss.photos||[]).length, 0);
-
-  btn.disabled = false;
-  btn.textContent = '✓ Done';
-  clwCloseDriveBrowser();
-
-  // 6. Show photo upload modal (skip straight to project if visit has no photos)
-  if (totalPhotos > 0) {
-    clwOpenPhotoUpload(newVisitId, project.id, totalPhotos);
-  } else {
-    await openProject(project.id);
-  }
-}
-
-// ── Re-fetch photos from Drive and write to IndexedDB ────
-async function clwRefetchPhotos(baseUrl, newVisitId, onProgress) {
-  // Fetch one photo file as a data URL via Apps Script
-  async function fetchPhoto(filename) {
-    const url = baseUrl + '&action=getPhoto&filename=' + encodeURIComponent(filename);
-    const resp = await fetch(url);
-    if (!resp.ok) throw new Error('HTTP ' + resp.status + ' for ' + filename);
-    const json = await resp.json();
-    if (json.error) throw new Error(json.error);
-    return json.data || null;
-  }
-
-  // Load visit from DB
-  const v = await dbGet('visits', newVisitId);
-  if (!v) return;
-
-  // Count total for progress reporting
-  const total = (v.plans||[]).length
-    + (v.pins||[]).reduce((s,p)=>s+(p.type==='photo'?(p.photos||[]).length:0),0)
-    + (v.issues||[]).reduce((s, iss) => s + (iss.photos||[]).length, 0);
-  let done = 0, failed = 0;
-
-  const tick = () => { done++; if (onProgress) onProgress(done, total); };
-
-  // Plan images — stored separately in planImages store
-  for (const pl of (v.plans || [])) {
-    try {
-      const du = await fetchPhoto('plan_' + pl.id + '.jpg');
-      if (du) { await dbPut('planImages', { key: 'v' + newVisitId + '_p' + pl.id, du }); }
-    } catch(err) { console.warn('Plan photo failed:', err.message); failed++; }
-    tick();
-  }
-
-  // Pinned photos (P1A, P1B… matching sync order) — stored in visit record
-  let pn = 1;
-  for (const pin of (v.pins || [])) {
-    if (pin.type === 'photo') {
-      if(!pin.photos)pin.photos=[];
-      for(let pi=0;pi<pin.photos.length;pi++){
-        try {
-          // Try new multi-photo naming first, fall back to legacy single-photo name for pi===0
-          let du = await fetchPhoto(`pin_P${pn}${String.fromCharCode(65+pi)}.jpg`).catch(()=>null);
-          if(!du && pi===0) du = await fetchPhoto(`pin_P${pn}.jpg`).catch(()=>null);
-          if(du) pin.photos[pi].du = du;
-        } catch(err) { console.warn('Pin photo P'+pn+String.fromCharCode(65+pi)+' failed:', err.message); failed++; }
-        tick();
-      }
-      pn++;
-    }
-  }
-
-  // Issue photos — stored in visit record
-  for (const iss of (v.issues || [])) {
-    let n = 1;
-    for (const ph of (iss.photos || [])) {
-      try {
-        const du = await fetchPhoto('finding_' + iss.id + '_photo_' + n + '.jpg');
-        if (du) { ph.du = du; }
-      } catch(err) { console.warn('Issue photo failed:', err.message); failed++; }
-      tick();
-      n++;
-    }
-  }
-
-  // Save updated visit record (now contains pin + issue photo data)
-  await dbPut('visits', v);
-
-  if (failed > 0) throw new Error((done - failed) + ' photos loaded, ' + failed + ' failed — check console for details');
-}
-</script>
-
-<!-- STAGE 2: REVIEW & CAPTION SCREEN -->
-<div id="screen-review" class="screen">
-  <div class="app-hdr">
-    <div class="hdr-l">
-      <button class="back-btn" onclick="closeReviewScreen()">&#8592; Back to Visit</button>
-      <span class="hdr-title">Review &amp; Caption Photos</span>
-    </div>
-    <div id="review-progress" class="sync-status sync-saving">0 / 0 captioned</div>
-  </div>
-  <div class="main">
-    <p style="font-size:13px;color:var(--clw-mid);margin-bottom:20px;line-height:1.6">
-      Add a caption to each photo before generating your report. Changes save automatically.
-    </p>
-    <div id="review-grid" style="display:flex;flex-direction:column;gap:12px"></div>
-    <div style="height:40px"></div>
-  </div>
-</div>
-
-<!-- ════════════════════════════════════════════════════════════
-     PHOTO UPLOAD MODAL (appears after loading a visit from Drive)
-════════════════════════════════════════════════════════════ -->
-<div id="modal-photo-upload" class="modal hide" style="max-width:480px;width:92vw">
-  <div class="modal-hdr">📷 Upload Photos</div>
-  <div class="modal-body" style="padding:20px;gap:12px">
-    <p id="photo-upload-desc" style="font-size:13px;color:var(--clw-mid);line-height:1.6;margin:0">
-      Visit data loaded. Drop in the photo zip you saved on site to restore all photos.
-    </p>
-    <div id="photo-drop-zone"
-      style="border:2.5px dashed var(--clw-blue);border-radius:10px;padding:40px 20px;text-align:center;cursor:pointer;transition:background .15s;background:rgba(0,108,170,.04)"
-      onclick="document.getElementById('photo-zip-input').click()"
-      ondragover="event.preventDefault();this.style.background='rgba(0,108,170,.12)'"
-      ondragleave="this.style.background='rgba(0,108,170,.04)'"
-      ondrop="event.preventDefault();this.style.background='rgba(0,108,170,.04)';clwHandlePhotoDrop(event)">
-      <div style="font-size:40px;margin-bottom:10px">📦</div>
-      <div style="font-size:14px;font-weight:800;color:var(--clw-blue);margin-bottom:4px">Drop photo zip here</div>
-      <div style="font-size:12px;color:var(--clw-mid)">or click to browse for the file</div>
-    </div>
-    <div id="photo-upload-progress" style="display:none;padding:4px 0"></div>
-  </div>
-  <div class="modal-footer">
-    <button class="btn-cancel" onclick="clwSkipPhotoUpload()">Skip — do later</button>
-  </div>
-</div>
-<div id="modal-photo-upload-backdrop" class="modal-backdrop hide"></div>
-<input type="file" id="photo-zip-input" accept=".zip,application/zip" style="display:none" onchange="clwHandlePhoto
+ 
