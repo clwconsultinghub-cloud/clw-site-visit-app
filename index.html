@@ -245,8 +245,8 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .minimise-all-btn{border:1.5px solid var(--brd);border-radius:20px;background:white;padding:5px 14px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;color:var(--clw-mid);transition:all .15s}
 .minimise-all-btn:hover{border-color:var(--clw-blue);color:var(--clw-blue)}
 /* Collapsed issue: issue-num is tappable to expand */
-.issue-card.collapsed .issue-num{cursor:pointer;color:var(--clw-blue);text-decoration:underline dotted;text-underline-offset:2px}
-.issue-card.collapsed .issue-num:hover{opacity:.75}
+.issue-card.collapsed .issue-num{cursor:pointer;opacity:.85}
+.issue-card.collapsed .issue-num:hover{opacity:1}
 /* Add-pin button in header (collapsed state) */
 .iss-addpin-hdr-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:none;cursor:pointer;font-size:16px;font-weight:900;line-height:1;font-family:inherit;transition:all .12s;flex-shrink:0;background:#16a34a;color:white}
 .iss-addpin-hdr-btn:hover{filter:brightness(1.12)}
@@ -301,7 +301,10 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .proj-lock-badge{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;background:var(--clw-blue-lt);color:var(--clw-blue);padding:1px 5px;border-radius:8px;margin-left:4px;vertical-align:middle}
 /* ── Utility ── */
 .hide{display:none!important}
-@media(max-width:600px){.fgrid{grid-template-columns:1fr}.fgrid .full{grid-column:1}.proj-meta-grid{grid-template-columns:1fr}.inline-plan-hdr{flex-direction:column;align-items:flex-start}
+@media(max-width:600px){.fgrid{grid-template-columns:1fr}.fgrid .full{grid-column:1}.proj-meta-grid{grid-template-columns:1fr}
+.inline-plan-hdr{flex-wrap:wrap;gap:6px;padding:8px 10px}
+.inline-plan-hdr .pin-edit-btn,.inline-plan-hdr .reset-crop-btn{font-size:10px;padding:5px 9px;white-space:nowrap}
+.tap-plan-hint{width:100%;flex:0 0 100%}
 .main{padding:16px 8px 80px}}
 /* Portrait phones: title row + buttons row */
 @media(orientation:portrait) and (max-width:600px){
@@ -466,7 +469,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
             <button class="pin-edit-btn" id="crop-btn" onclick="startInlineCrop()">✂ Crop Layout</button>
             <button class="pin-edit-btn hide" id="crop-pan-btn" onclick="toggleCropPan()">✋ Pan</button>
             <button class="reset-crop-btn hide" id="undo-crop-btn" onclick="undoInlineCrop()">↩ Undo</button>
-            <button class="reset-crop-btn hide" id="reset-crop-btn" onclick="resetInlineCrop()">↺ Reset Layout</button>
+            <button class="reset-crop-btn hide" id="reset-crop-btn" onclick="resetInlineCrop()">↺ Reset</button>
           </div>
           <canvas id="inline-plan-canvas" class="inline-plan-canvas" style="cursor:pointer" onclick="if(!_inlineCropMode)openPlanOverlay(_activePlanId)"></canvas>
         </div>
@@ -36826,7 +36829,4 @@ async function clwRefetchPhotos(baseUrl, newVisitId, onProgress) {
   </div>
 </div>
 <div id="modal-photo-upload-backdrop" class="modal-backdrop hide"></div>
-<input type="file" id="photo-zip-input" accept=".zip,application/zip" style="display:none" onchange="clwHandlePhotoFileInput(event)">
-
-<script>
-// ── Photo upload modal state ───�
+<input type="file" id="photo-zip-input" accept=".zip,application/zip" style="display:none" onchange="clwHandlePhoto
