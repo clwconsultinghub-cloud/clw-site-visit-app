@@ -105,7 +105,7 @@ body{font-family:'Mulish',Arial,sans-serif;background:var(--bg);color:var(--clw-
 textarea{width:100%;border:1.5px solid var(--brd);border-radius:6px;padding:10px 12px;font-size:13px;line-height:1.65;font-family:inherit;color:var(--clw-dark);resize:vertical;min-height:88px;transition:border-color .15s}
 textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rgba(0,108,170,.12)}
 /* ── Issues ── */
-.issues-wrap{display:flex;flex-direction:column;gap:12px}
+.issues-wrap{display:flex;flex-direction:column;gap:8px}
 .issue-card{border:1.5px solid var(--brd);border-radius:var(--r);overflow:hidden}
 .issue-hd{background:#f8f9fa;border-bottom:1px solid var(--brd);padding:10px 14px;display:flex;align-items:center;gap:10px}
 .issue-num{background:var(--clw-blue);color:white;padding:3px 10px;height:26px;border-radius:13px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;white-space:nowrap;letter-spacing:.3px}
@@ -114,7 +114,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .issue-ti::placeholder{color:#bbb;font-weight:400}
 .issue-del{background:none;border:none;cursor:pointer;color:#ccc;font-size:20px;line-height:1;padding:2px 5px;border-radius:4px;transition:all .12s}
 .issue-del:hover{color:#e53e3e;background:#fff0f0}
-.issue-body{padding:14px}
+.issue-body{padding:10px 10px 12px}
 .add-iss{border:2px dashed var(--clw-grey);border-radius:var(--r);background:none;width:100%;padding:12px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;color:var(--clw-mid);transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px}
 .add-iss:hover{border-color:var(--clw-blue);color:var(--clw-blue);background:var(--clw-blue-lt)}
 /* ── Drop zone / Photos ── */
@@ -124,9 +124,9 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .dz-icon{font-size:24px;display:block;margin-bottom:5px}
 .dz-txt{color:var(--clw-mid);font-size:13px}
 .dz-txt strong{color:var(--clw-blue)}
-.pg{display:flex;flex-wrap:wrap;gap:10px;margin-top:10px}
-.pc2{border:1.5px solid var(--brd);border-radius:var(--r);overflow:hidden;width:185px;background:white;box-shadow:var(--sh)}
-.pt{width:100%;height:115px;object-fit:cover;display:block;background:#eee}
+.pg{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.pc2{border:1.5px solid var(--brd);border-radius:var(--r);overflow:hidden;width:auto;background:white;box-shadow:var(--sh)}
+.pt{width:100%;height:100px;object-fit:cover;display:block;background:#eee}
 .pf{padding:7px 8px;display:flex;flex-direction:column;gap:5px}
 .pci{border:1px solid var(--brd);border-radius:5px;padding:5px 8px;font-size:12px;font-family:inherit;width:100%}
 .pci:focus{outline:none;border-color:var(--clw-blue)}
@@ -239,6 +239,31 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .pap-delete:hover{background:#b91c1c}
 .legend-row{cursor:pointer;border-radius:6px;padding:3px 6px;margin:0 -6px;transition:background .12s}
 .legend-row:hover{background:var(--clw-blue-lt)}
+
+/* ── Issue collapse ── */
+.issue-card.collapsed .issue-body{display:none}
+.iss-collapse-btn{background:none;border:none;cursor:pointer;color:var(--clw-mid);font-size:16px;padding:2px 8px;line-height:1;font-family:inherit;transition:color .12s;flex-shrink:0;margin-left:auto}
+.iss-collapse-btn:hover{color:var(--clw-blue)}
+.minimise-all-wrap{display:flex;align-items:center;justify-content:flex-end;margin-bottom:6px}
+.minimise-all-btn{border:1.5px solid var(--brd);border-radius:20px;background:white;padding:5px 14px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;color:var(--clw-mid);transition:all .15s}
+.minimise-all-btn:hover{border-color:var(--clw-blue);color:var(--clw-blue)}
+/* ── Issues summary bar ── */
+#issues-summary{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;padding:8px 10px;background:#f8f9fa;border:1.5px solid var(--brd);border-radius:var(--r)}
+#issues-summary:empty{display:none}
+.iss-sum-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--clw-mid);width:100%;margin-bottom:3px}
+.iss-sum-item{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--clw-dark);cursor:pointer;padding:3px 9px;border-radius:12px;background:white;border:1px solid var(--brd);transition:all .12s}
+.iss-sum-item:hover{border-color:var(--clw-blue);color:var(--clw-blue)}
+.iss-sum-badge{background:var(--clw-blue);color:white;border-radius:8px;padding:1px 6px;font-size:10px;font-weight:800}
+/* ── Pin action buttons ── */
+.pap-movepin{background:#f59e0b;color:white;border:none;padding:10px 10px;border-radius:8px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap}
+.pap-movepin:hover{background:#d97706}
+.pap-addpin{background:#16a34a;color:white;border:none;padding:10px 10px;border-radius:8px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap}
+.pap-addpin:hover{background:#15803d}
+/* ── Pin number clickable link in issue photos ── */
+.pin-num-link{cursor:pointer;font-weight:800;color:var(--clw-blue)!important;text-decoration:underline dotted;text-underline-offset:2px;transition:opacity .12s}
+.pin-num-link:hover{opacity:.75}
+/* ── Move mode pin hint ── */
+#move-pin-hint{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(245,158,11,.92);color:white;padding:12px 22px;border-radius:20px;font-size:13px;font-weight:800;text-align:center;pointer-events:none;display:none;z-index:11}
 /* ── Toast / Recording ── */
 .toast{position:fixed;bottom:28px;left:50%;transform:translateX(-50%);background:var(--clw-blue);color:white;padding:11px 24px;border-radius:30px;font-size:13px;font-weight:800;font-family:inherit;z-index:9998;display:none;pointer-events:none;box-shadow:0 4px 16px rgba(0,108,170,.45)}
 .toast.on{display:block}
@@ -247,14 +272,14 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .rd{width:9px;height:9px;border-radius:50%;background:white;animation:blink .9s infinite}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.15}}
 /* ── Issue drag-reorder ── */
-.iss-drag-handle{cursor:grab;color:#bbb;font-size:20px;padding:0 4px 0 0;user-select:none;flex-shrink:0;line-height:1;transition:color .12s}
-.iss-drag-handle:hover{color:var(--clw-mid)}
-.iss-drag-handle:active{cursor:grabbing}
-.iss-move-btns{display:flex;flex-direction:column;gap:0;opacity:0;transition:opacity .15s;flex-shrink:0}
-.issue-hd:hover .iss-move-btns,.iss-move-btns:focus-within{opacity:1}
-@media(pointer:coarse){.iss-move-btns{opacity:1}}
-.iss-move-btn{background:none;border:none;cursor:pointer;color:var(--clw-mid);font-size:9px;padding:1px 4px;line-height:1.2;font-family:inherit;transition:color .12s}
-.iss-move-btn:hover{color:var(--clw-blue)}
+.iss-drag-handle{display:none}
+
+
+.iss-move-btns{display:flex;flex-direction:row;gap:4px;flex-shrink:0;align-items:center}
+
+
+.iss-move-btn{background:rgba(0,108,170,.1);border:none;cursor:pointer;color:var(--clw-blue);font-size:18px;padding:4px 10px;line-height:1;font-family:inherit;transition:all .12s;border-radius:6px;min-width:36px}
+.iss-move-btn:hover:not(:disabled){background:var(--clw-blue);color:white}
 .iss-move-btn:disabled{opacity:.2;cursor:default}
 .issue-card.dragging{opacity:.35;border-color:var(--clw-blue)!important;box-shadow:none}
 .issue-card.drag-over-top{border-top:3px solid var(--clw-blue)!important}
@@ -421,31 +446,18 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
       </div>
     </div>
 
-    <!-- Site Findings / Issues -->
-    <div class="card" id="site-findings-section">
-      <div class="card-hdr" style="display:flex;align-items:center;justify-content:space-between">
-        <span>Site Findings</span>
-        <button onclick="openReviewScreen()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:white;padding:5px 12px;border-radius:16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">📷 Review Photos</button>
-      </div>
-      <div class="card-body">
-        <div class="issues-wrap" id="ilist"></div>
-        <button class="add-iss" onclick="addIssue()">＋ Add Issue / Finding</button>
-      </div>
-    </div>
-
-    <!-- Plans & Pins -->
-    <div class="card" id="plans-pins-section">
+    <!-- Plan View (above issues) -->
+    <div class="card" id="plan-view-card">
       <div class="card-hdr" style="display:flex;align-items:center;justify-content:space-between">
         <span>Plans &amp; Location Pins</span>
-        <a href="#site-findings-section" style="font-size:11px;font-weight:700;color:white;text-decoration:none;opacity:.85;white-space:nowrap" title="Back to Site Findings"><span style="font-weight:400;margin-right:6px">Back to site findings</span>↑ Findings</a>
       </div>
-      <div class="card-body">
+      <div class="card-body" style="padding:14px">
         <div class="plans-bar-wrap">
           <div id="plans-bar" class="plans-bar"></div>
           <button class="upload-plan-btn" onclick="document.getElementById('plan-file-input').click()">+ Upload Plan (Image or PDF)</button>
         </div>
         <!-- Inline plan view with pins -->
-        <div id="inline-plan-section" class="inline-plan-wrap hide">
+        <div id="inline-plan-section" class="inline-plan-wrap hide" style="margin-top:0">
           <div class="inline-plan-hdr">
             <span id="inline-plan-name" class="inline-plan-name">Plan</span>
             <span class="tap-plan-hint">Tap plan to add / edit pins</span>
@@ -453,9 +465,33 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
             <button class="reset-crop-btn hide" id="reset-crop-btn" onclick="resetInlineCrop()">↺ Reset Layout</button>
           </div>
           <canvas id="inline-plan-canvas" class="inline-plan-canvas" style="cursor:pointer" onclick="if(!_inlineCropMode)openPlanOverlay(_activePlanId)"></canvas>
-          <div id="pin-legend" class="pin-legend"></div>
-          <div id="plan-pin-photos" style="display:none"></div>
         </div>
+      </div>
+    </div>
+
+
+    <!-- Site Findings / Issues -->
+    <div class="card" id="site-findings-section">
+      <div class="card-hdr" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Site Findings</span>
+        <button onclick="openReviewScreen()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:white;padding:5px 12px;border-radius:16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">📷 Review Photos</button>
+      </div>
+      <div class="card-body" style="padding:14px">
+        <div id="issues-summary"></div>
+        <div class="minimise-all-wrap"><button class="minimise-all-btn" onclick="minimiseAllIssues()">▲ Minimise All</button></div>
+        <div class="issues-wrap" id="ilist"></div>
+        <button class="add-iss" onclick="addIssue()">＋ Add Issue / Finding</button>
+      </div>
+    </div>
+    <!-- Plans & Pins section now contains only the pin index -->
+    <div class="card" id="plans-pins-section">
+      <div class="card-hdr" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Pin Index</span>
+        <a href="#site-findings-section" style="font-size:11px;font-weight:700;color:white;text-decoration:none;opacity:.85;white-space:nowrap" title="Back to Site Findings"><span style="font-weight:400;margin-right:6px">Back to site findings</span>↑ Findings</a>
+      </div>
+      <div class="card-body" style="padding:14px">
+        <div id="pin-legend" class="pin-legend" style="padding:0;border:none"></div>
+        <div id="plan-pin-photos" style="display:none"></div>
       </div>
     </div>
 
@@ -485,13 +521,14 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 <div id="plan-overlay" class="plan-overlay hide">
   <div class="po-hdr">
     <span class="po-title" id="po-plan-name">Plan</span>
-    <button class="po-close" onclick="closePlanOverlay()">✕ Done</button>
+    <button class="po-close" onclick="closePlanOverlay()">✕ Close</button>
   </div>
   <div class="po-tabs" id="plan-tabs"></div>
   <div id="plan-canvas-wrap">
     <canvas id="plan-canvas"></canvas>
     <div id="plan-hint">Tap on the plan to drop a pin</div>
     <!-- Pin assign panel -->
+    <div id="move-pin-hint">✋ Tap &amp; drag the pin to move it<br><small style="font-weight:600;opacity:.85">Tap anywhere else when done</small></div>
     <div id="pin-assign-panel" class="pin-assign-panel hide">
       <div class="pap-title" id="pap-title">📍 New Pin</div>
       <div class="pap-row">
@@ -525,7 +562,9 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
       <div class="pap-actions">
         <button class="pap-cancel" onclick="cancelPin()">Cancel</button>
         <button class="pap-delete hide" id="pap-delete-btn" onclick="_deletePinFromEdit()">🗑 Delete</button>
-        <button class="pap-confirm" id="pap-confirm-btn" onclick="confirmPinAssign()">Confirm Pin</button>
+        <button class="pap-movepin hide" id="pap-movepin-btn" onclick="enterPinMoveMode()">✋ Move</button>
+        <button class="pap-addpin" id="pap-addpin-btn" onclick="addAnotherPin()">＋ Pin</button>
+        <button class="pap-confirm" id="pap-confirm-btn" onclick="confirmPinAssign()">Done</button>
       </div>
     </div>
   </div>
@@ -33821,7 +33860,8 @@ let currentProjectId=null, currentVisitId=null;
 let _saveTimer=null, _lastSaved=null;
 let issues=[],iseq=0,pseq=0;
 let plans=[],planSeq=0,pins=[],pnseq=0;
-let _activePlanId=null,_contextIssueId=null,_pendingPin=null,_pendingPinType='photo',_pendingPhotoMode='take',_editingPinId=null,_draggingPin=null,_retroPin=null,_droppedPhotoData=null,_pendingPinEdit=null;
+let _activePlanId=null,_contextIssueId=null,_pendingPin=null,_pendingPinType='photo',_pendingPhotoMode='take',_editingPinId=null,_draggingPin=null,_retroPin=null,_droppedPhotoData=null,_pendingPinEdit=null,_moveModePin=null;
+let _collapsedIssues=new Set();
 let _planCrops={};           // {planId:{x1,y1,x2,y2}} — fractions of full image
 let _inlineCropMode=false,_icDragging=false,_icStart=null,_inlinePlanImgCache=null;
 let _planImgCache={};
@@ -34179,17 +34219,93 @@ function duBuf(du){const b=atob(du.split(',')[1]),a=new ArrayBuffer(b.length),v=
 function b64ToArr(s){const b=atob(s),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
 function toast(msg,dur=3000){const t=document.getElementById('toast');if(!t)return;t.textContent=msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),dur);}
 
+
+// ── Issue collapse ──────────────────────────────────────────────────
+function toggleIssueCollapse(id){
+  if(_collapsedIssues.has(id))_collapsedIssues.delete(id);
+  else _collapsedIssues.add(id);
+  renderAll();
+}
+function minimiseAllIssues(){
+  const allCollapsed=issues.every(i=>_collapsedIssues.has(i.id));
+  if(allCollapsed){issues.forEach(i=>_collapsedIssues.delete(i.id));}
+  else{issues.forEach(i=>_collapsedIssues.add(i.id));}
+  renderAll();
+}
+
+// ── Issues summary ──────────────────────────────────────────────────
+function renderIssuesSummary(){
+  const el=document.getElementById('issues-summary');if(!el)return;
+  if(!issues.length){el.innerHTML='';return;}
+  el.innerHTML='<div class="iss-sum-label">Issues at a glance</div>'+
+    issues.map((iss,idx)=>{
+      const pCount=pins.filter(p=>p.issueId===iss.id).length;
+      return`<div class="iss-sum-item" onclick="scrollToIssue(${iss.id})" title="${e(iss.title||'Issue '+(idx+1))}">
+        <span class="iss-sum-badge">${idx+1}</span>
+        <span style="overflow:hidden;text-overflow:ellipsis;max-width:120px">${e(iss.title||'Untitled')}</span>
+        ${pCount?`<span style="color:var(--clw-mid);font-weight:600;font-size:10px">📍${pCount}</span>`:''}
+      </div>`;
+    }).join('');
+}
+function scrollToIssue(id){
+  const card=document.querySelector(`.issue-card[data-id="${id}"]`);
+  if(card){card.scrollIntoView({behavior:'smooth',block:'start'});
+    // If collapsed, expand it
+    if(_collapsedIssues.has(id)){_collapsedIssues.delete(id);renderAll();}
+  }
+}
+
+// ── Pin move mode ───────────────────────────────────────────────────
+function enterPinMoveMode(){
+  if(!_editingPinId)return;
+  _moveModePin=_editingPinId;
+  document.getElementById('pin-assign-panel').classList.add('hide');
+  const hint=document.getElementById('move-pin-hint');
+  if(hint)hint.style.display='block';
+  _drawPlan();
+}
+
+// ── Add another pin ─────────────────────────────────────────────────
+function addAnotherPin(){
+  // If in edit mode, save current pin first
+  if(_editingPinId){
+    const selEl=document.getElementById('pin-issue-select');
+    const pin=pins.find(p=>p.id===_editingPinId);
+    if(pin){
+      let validIssId=null;
+      if(selEl?.value==='new'){
+        const nt=(document.getElementById('pin-new-issue-input')?.value||'').trim();
+        if(nt){const ni={id:++iseq,title:nt,desc:'',photos:[]};issues.push(ni);validIssId=ni.id;}
+      } else {
+        const issId=selEl?parseInt(selEl.value):0;
+        validIssId=(!isNaN(issId)&&issId>0)?issId:null;
+      }
+      pin.issueId=validIssId;
+      pin.note=document.getElementById('pin-note-text')?.value||'';
+    }
+    _editingPinId=null;
+  } else {
+    // In new-pin mode, discard the pending pin (user will place a new one)
+    _pendingPin=null;
+  }
+  _resetPanelToNewMode();
+  document.getElementById('pin-assign-panel').classList.add('hide');
+  _drawPlan();renderAll();renderInlinePlan();saveSt();
+  toast('Tap the plan to place your next pin');
+}
+
 // ── Issues & Photos ───────────────────────────────────────────
-function addIssue(){issues.push({id:++iseq,title:'',desc:'',photos:[]});renderAll();saveSt();}
+function addIssue(){issues.push({id:++iseq,title:'',desc:'',photos:[]});renderAll();renderIssuesSummary();saveSt();}
 
 function delIssue(id){
   if(!confirm('Remove this finding?'))return;
-  issues=issues.filter(i=>i.id!==id);renderAll();saveSt();
+  issues=issues.filter(i=>i.id!==id);_collapsedIssues.delete(id);renderAll();renderIssuesSummary();saveSt();
 }
 
 // ── Issue reorder ─────────────────────────────────────────────
 let _dragIssueId=null;
 
+function delIssueCollapsed(id){_collapsedIssues.delete(id);}
 function issMove(id,dir){
   const idx=issues.findIndex(i=>i.id===id);
   const ni=idx+dir;if(ni<0||ni>=issues.length)return;
@@ -34246,21 +34362,25 @@ function issDragEnd(){
 function renderAll(){
   const wrap=document.getElementById('ilist');if(!wrap)return;
   if(!issues.length){wrap.innerHTML='';return;}
+  // Sync collapse buttons (toggle icon based on current state)
+  renderIssuesSummary();
+  const _minBtn=document.querySelector('.minimise-all-btn');
+  if(_minBtn)_minBtn.textContent=issues.length&&issues.every(i=>_collapsedIssues.has(i.id))?'▼ Expand All':'▲ Minimise All';
   wrap.innerHTML=issues.map((iss,idx)=>`
-  <div class="issue-card" data-id="${iss.id}" draggable="true"
+  <div class="issue-card${_collapsedIssues.has(iss.id)?' collapsed':''}" data-id="${iss.id}" draggable="true"
     ondragstart="issDragStart(event,${iss.id})"
     ondragover="issDragOver(event)"
     ondragleave="issDragLeave(event)"
     ondrop="issDrop(event,${iss.id})"
     ondragend="issDragEnd()">
     <div class="issue-hd">
-      <span class="iss-drag-handle" title="Drag to reorder">⠿</span>
       <span class="iss-move-btns">
         <button class="iss-move-btn" onclick="event.stopPropagation();issMove(${iss.id},-1)" title="Move up"${idx===0?' disabled':''}>▲</button>
         <button class="iss-move-btn" onclick="event.stopPropagation();issMove(${iss.id},1)" title="Move down"${idx===issues.length-1?' disabled':''}>▼</button>
       </span>
       <div class="issue-num">Issue ${idx+1}</div>
-      <input class="issue-ti" placeholder="Finding title…" value="${e(iss.title)}" oninput="saveSt()">
+      <input class="issue-ti" placeholder="Finding title…" value="${e(iss.title)}" oninput="saveSt();renderIssuesSummary()">
+      <button class="iss-collapse-btn" onclick="event.stopPropagation();toggleIssueCollapse(${iss.id})" title="Minimise/expand">${_collapsedIssues.has(iss.id)?'▶':'▼'}</button>
       <button class="issue-del" onclick="delIssue(${iss.id})" title="Remove">×</button>
     </div>
     <div class="issue-body">
@@ -34295,7 +34415,7 @@ function rPhotos(iss){
     const pinNum=pins.indexOf(pin)+1;
     return`<div class="pc2" style="flex-direction:column;justify-content:flex-start">
       <div class="pf" style="padding:8px 10px;width:100%;box-sizing:border-box">
-        <div class="sr" style="margin-bottom:4px"><span style="color:#282828;font-weight:700">📍 P${pinNum} ✏️ Note</span></div>
+        <div class="sr" style="margin-bottom:4px"><span class="pin-num-link" onclick="openPlanAndFocusPin(${pin.id})" title="Open plan and edit pin">📍 P${pinNum} ✏️ Note</span></div>
         <div style="font-size:12px;color:var(--clw-dark);white-space:pre-wrap;margin-bottom:6px">${e(pin.note||'(no note text)')}</div>
         <button class="pd" onclick="delPin(${pin.id})">✕ Remove Pin</button>
       </div>
@@ -34324,7 +34444,7 @@ function rPhotos(iss){
       <img class="pt" src="${ph.du}" alt="" onclick="openIssueLightbox(${iss.id},${i})">
       <div class="pf">
         <input class="pci" value="${e(ph.cap)}" placeholder="Caption…" oninput="updatePinPhotoCap(${pin.id},${pi},this.value)">
-        <div class="sr"><span style="color:#282828;font-weight:700">📍 P${pinNum}${alpha}</span>${ph.ts?`<span style="margin-left:4px">${_tsTag(ph.ts)}</span>`:''}</div>
+        <div class="sr"><span class="pin-num-link" onclick="openPlanAndFocusPin(${pin.id})" title="Open plan and edit pin">📍 P${pinNum}${alpha}</span>${ph.ts?`<span style="margin-left:4px">${_tsTag(ph.ts)}</span>`:''}</div>
         ${pi===0?`<button class="pd" onclick="delPin(${pin.id})">✕ Remove Pin</button>`:`<button class="pd" onclick="delPinPhoto(${pin.id},${pi})">✕ Remove Photo</button>`}
       </div>
     </div>`;}).join('');}).join('')}
@@ -34683,8 +34803,7 @@ document.addEventListener('DOMContentLoaded',()=>{
         const px=_panX+_overlayPinX(p.x)*_zoom;
         const py=_panY+_overlayPinY(p.y)*_zoom;
         if(Math.hypot(ev.offsetX-px,ev.offsetY-py)<=20){
-          _draggingPin=p;_moved=false;_isDragging=false;
-          canvas.style.cursor='grabbing';
+          if(_moveModePin===p.id){_draggingPin=p;_moved=false;_isDragging=false;canvas.style.cursor='grabbing';}
           if(_tip)_tip.style.display='none';
           return;
         }
@@ -34739,16 +34858,15 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
   canvas.addEventListener('mouseleave',()=>{
     if(_tip)_tip.style.display='none';
-    if(_draggingPin&&_moved){saveSt();renderAll();renderInlinePlan();toast('Pin moved ✓');}
+    if(_draggingPin&&_moved){_moveModePin=null;document.getElementById('move-pin-hint').style.display='none';saveSt();renderAll();renderInlinePlan();toast('Pin moved ✓');}
     _draggingPin=null;canvas.style.cursor='crosshair';
   });
   canvas.addEventListener('mouseup',ev=>{
     if(_draggingPin){
       if(_moved){
-        // Drop pin at new position
+        _moveModePin=null;document.getElementById('move-pin-hint').style.display='none';
         saveSt();renderAll();renderInlinePlan();toast('Pin moved ✓');
       } else {
-        // Treat as a click — open edit panel
         _openPinEdit(_draggingPin,pins.indexOf(_draggingPin)+1);
       }
       _draggingPin=null;canvas.style.cursor='crosshair';
@@ -34774,7 +34892,10 @@ document.addEventListener('DOMContentLoaded',()=>{
         const p=planPins[i];
         const px=_panX+_overlayPinX(p.x)*_zoom;
         const py=_panY+_overlayPinY(p.y)*_zoom;
-        if(Math.hypot(cx-px,cy-py)<=24){_draggingPin=p;_moved=false;return;}
+        if(Math.hypot(cx-px,cy-py)<=24){
+          if(_moveModePin===p.id){_draggingPin=p;_moved=false;}
+          return;
+        }
       }
     }
   },{passive:true});
@@ -34806,7 +34927,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   },{passive:true});
   canvas.addEventListener('touchend',ev=>{
     if(_draggingPin){
-      if(_moved){saveSt();renderAll();renderInlinePlan();toast('Pin moved ✓');}
+      if(_moved){_moveModePin=null;document.getElementById('move-pin-hint').style.display='none';saveSt();renderAll();renderInlinePlan();toast('Pin moved ✓');}
       else{_openPinEdit(_draggingPin,pins.indexOf(_draggingPin)+1);}
       _draggingPin=null;
       return;
@@ -34845,9 +34966,19 @@ document.addEventListener('DOMContentLoaded',()=>{
 
 function _handleTap(cx,cy){
   if(!_planImg)return;
-  // If the pin panel is already open, ignore background taps to prevent accidental new pins
+  // If the pin panel is already open, allow repositioning pending pin in new-pin mode
   const _panel=document.getElementById('pin-assign-panel');
-  if(_panel&&!_panel.classList.contains('hide'))return;
+  if(_panel&&!_panel.classList.contains('hide')){
+    // In new-pin mode (no editingPinId), let user reposition the ? marker by tapping
+    if(!_editingPinId&&_pendingPin){
+      const _rp=_canvasToPin(cx,cy);
+      const _dc=_planCrops[_activePlanId];
+      _pendingPin.x=Math.max(_dc?_dc.x1:0,Math.min(_dc?_dc.x2:1,_rp.x));
+      _pendingPin.y=Math.max(_dc?_dc.y1:0,Math.min(_dc?_dc.y2:1,_rp.y));
+      _drawPlan();
+    }
+    return;
+  }
   // Check if tapping near an existing pin — if so, open edit panel
   const planPins=pins.filter(p=>p.planId===_activePlanId);
   for(let i=0;i<planPins.length;i++){
@@ -34992,7 +35123,9 @@ function _resetPanelToNewMode(){
   const c=document.getElementById('pap-confirm-btn');
   const d=document.getElementById('pap-delete-btn');
   if(t)t.textContent='📍 New Pin';
-  if(c)c.textContent='Confirm Pin';
+  if(c)c.textContent='Done';
+  const _mpBtn=document.getElementById('pap-movepin-btn');if(_mpBtn)_mpBtn.classList.add('hide');
+  const _apBtn=document.getElementById('pap-addpin-btn');if(_apBtn)_apBtn.textContent='＋ Add Pin';
   if(d)d.classList.add('hide');
   const _cancelBtn=document.querySelector('.pap-cancel');
   if(_cancelBtn)_cancelBtn.textContent='Cancel';
@@ -35026,7 +35159,9 @@ function _openPinEdit(pin,pinNum){
   const c=document.getElementById('pap-confirm-btn');
   const d=document.getElementById('pap-delete-btn');
   if(t)t.textContent=`📍 Edit Pin P${pinNum}`;
-  if(c)c.textContent='Save Changes';
+  if(c)c.textContent='Done';
+  const mpBtn=document.getElementById('pap-movepin-btn');if(mpBtn)mpBtn.classList.remove('hide');
+  const apBtn=document.getElementById('pap-addpin-btn');if(apBtn)apBtn.textContent='＋ Add Pin';
   if(d)d.classList.remove('hide');
   const cancelBtn=document.querySelector('.pap-cancel');
   if(cancelBtn)cancelBtn.textContent='Close';
