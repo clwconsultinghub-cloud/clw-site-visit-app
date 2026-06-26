@@ -36103,385 +36103,122 @@ async function clwManualSync() {
   if (!CLW_GOOGLE.SCRIPT_URL) { toast('Google Drive not configured — add your Script URL in the app settings.', 5000); return; }
   if (!navigator.onLine) { toast('You appear to be offline — connect to WiFi first.', 4000); return; }
   await clwProcessQueue();
+  // After sync, offer to save the photo zip if there are photos on this visit
+  const hasPhotos = (issues||[]).some(i=>(i.photos||[]).some(p=>p.du)) ||
+                    (pins||[]).some(p=>p.type==='photo'&&(p.photos||[]).some(ph=>ph.du));
+  if (hasPhotos) clwShowSavePhotosPrompt();
 }
 
 // ── Save / download photos (iOS-aware) ───────────────────────
 async function handleSavePhotos() {
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  if (isIOS && navigator.canShare) {
-    const btn = document.getElementById('dl-photos-btn');
-    if (btn) { btn.disabled = true; }
-    try {
-      const files = [];
-      let seq = 1;
-      // Issue photos
-      issues.forEach(iss => {
-        const pinnedIds = new Set(
-          pins.filter(p => p.sourcePhotoId != null && iss.photos.some(ph => ph.id === p.sourcePhotoId))
-              .map(p => p.sourcePhotoId)
-        );
-        iss.photos.filter(ph => !pinnedIds.has(ph.id)).forEach(ph => {
-          if (!ph.du) return;
-          const [hdr, b64] = ph.du.split(',');
-          const mime = (hdr.match(/:(.*?);/) || ['','image/jpeg'])[1];
-          const ext = mime.split('/')[1]?.replace('jpeg','jpg') || 'jpg';
-          const arr = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-          files.push(new File([arr], `site-photo-${seq++}.${ext}`, {type: mime}));
-        });
-      });
-      // Pin photos
-      pins.filter(p => p.type === 'photo').forEach(pin => {
-        (pin.photos||[]).forEach(ph => {
-          if(!ph?.du)return;
-          const [hdr, b64] = ph.du.split(',');
-          const mime = (hdr.match(/:(.*?);/) || ['','image/jpeg'])[1];
-          const ext = mime.split('/')[1]?.replace('jpeg','jpg') || 'jpg';
-          const arr = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-          files.push(new File([arr], `site-photo-${seq++}.${ext}`, {type: mime}));
-        });
-      });
-      if (!files.length) { toast('No photos to save'); return; }
-      if (navigator.canShare({files})) {
-        await navigator.share({files, title: 'Site Photos'});
-        return;
-      }
-    } catch(ex) {
-      if (ex.name !== 'AbortError') toast('Could not share: ' + ex.message, 4000);
-      return;
-    } finally {
-      const btn = document.getElementById('dl-photos-btn');
-      if (btn) { btn.disabled = false; }
+  // Build the zip with manifest (same as desktop download) then share it as a single file.
+  // On iOS this produces one .zip in the share sheet — save to Files, AirDrop, WhatsApp etc.
+  // On desktop it triggers a normal browser download.
+  const btn = document.getElementById('dl-photos-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span>⏳</span> Preparing…'; }
+  try {
+    // Re-use downloadAllPhotos logic but return blob+filename instead of auto-downloading
+    const { blob, filename, total } = await buildPhotoZipBlob();
+    if (!total) { toast('No photos to save'); return; }
+
+    const zipFile = new File([blob], filename, { type: 'application/zip' });
+    if (navigator.canShare && navigator.canShare({ files: [zipFile] })) {
+      // Mobile: native share sheet — user can choose Save to Files, AirDrop, WhatsApp etc.
+      await navigator.share({ files: [zipFile], title: filename });
+    } else {
+      // Desktop: trigger download
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      toast(`✓ ${total} photo${total > 1 ? 's' : ''} downloaded`);
     }
+  } catch(ex) {
+    if (ex.name !== 'AbortError') toast('Could not save: ' + ex.message, 5000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span>⬇️</span> Save Photos'; }
   }
-  // Non-iOS / fallback: ZIP download
-  downloadAllPhotos();
 }
 
-// Stage 2: Review & Caption Screen
-function openReviewScreen() {
-  const all = [];
-  for (const iss of issues)
-    for (const ph of iss.photos)
-      all.push({ du:ph.du, cap:ph.cap||'',
-        label: iss.title ? 'Finding: ' + iss.title : 'Finding',
-        onchange:'ph_c(' + iss.id + ',' + ph.id + ',this.value)' });
+// ── Shared helper: builds the photo zip blob + manifest, returns {blob, filename, total} ──
+async function buildPhotoZipBlob() {
+  const zip = new JSZip();
+  const manifest = { visitId: currentVisitId, generated: new Date().toISOString(), photos: [] };
+  let total = 0;
+
+  // Issue photos (unpinned)
+  for (const iss of issues) {
+    const pinnedIds = new Set(
+      pins.filter(p => p.sourcePhotoId != null && iss.photos.some(ph => ph.id === p.sourcePhotoId))
+          .map(p => p.sourcePhotoId)
+    );
+    let n = 1;
+    for (const ph of iss.photos.filter(ph => !pinnedIds.has(ph.id))) {
+      if (!ph?.du) { n++; continue; }
+      const mime = ph.du.split(';')[0].replace('data:', '') || 'image/jpeg';
+      const ext  = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+      const filename = `finding_${iss.id}_photo_${n}.${ext}`;
+      const b64 = ph.du.split(',')[1];
+      if (b64) {
+        zip.file(filename, b64, { base64: true });
+        manifest.photos.push({ file: filename, type: 'issue', issueId: iss.id, photoId: ph.id, n, mime });
+        total++; n++;
+      }
+    }
+  }
+
+  // Pin photos
   let pn = 1;
-  for (const pin of pins) {
-    if (pin.type==='photo') {
-      (pin.photos||[]).forEach((ph,pi)=>{
-        if(ph?.du) all.push({ du:ph.du, cap:ph.cap||'',
-          label:'Pin P'+pn+(pin.photos.length>1?String.fromCharCode(65+pi):''),
-          onchange:'updatePinPhotoCap('+pin.id+','+pi+',this.value)' });
-      });
-      pn++;
-    }
-  }
-  const grid = document.getElementById('review-grid');
-  if (!all.length) {
-    grid.innerHTML = '<div style="text-align:center;padding:48px 20px;color:var(--clw-mid)">'
-      + '<div style="font-size:32px;margin-bottom:12px;opacity:.3">📷</div>'
-      + '<div style="font-size:14px;font-weight:700;margin-bottom:6px">No photos yet</div>'
-      + '<div style="font-size:13px">Add photos to findings or pin them on the plan first.</div></div>';
-  } else {
-    grid.innerHTML = all.map(function(p) {
-      return '<div style="background:white;border:1.5px solid var(--brd);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh);display:flex;align-items:stretch">'
-        + '<img src="' + p.du + '" style="width:160px;min-width:160px;max-height:140px;object-fit:cover;border-right:1px solid var(--brd);flex-shrink:0;cursor:zoom-in" onclick="openLightbox(this.src)" onerror="this.style.display=\'none\'" title="Tap to expand">'
-        + '<div style="flex:1;padding:12px 14px;display:flex;flex-direction:column;gap:6px;min-width:0">'
-        + '<span style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:var(--clw-blue)">' + e(p.label) + '</span>'
-        + '<textarea placeholder="Add a caption…" rows="3" style="flex:1;border:1.5px solid var(--brd);border-radius:6px;padding:8px 10px;font-size:13px;font-family:inherit;resize:vertical;color:var(--clw-dark);width:100%;min-height:70px;transition:border-color .15s" oninput="' + p.onchange + ';_rvProg()" onfocus="this.style.borderColor=\'var(--clw-blue)\'" onblur="this.style.borderColor=\'var(--brd)\'">' + e(p.cap) + '</textarea>'
-        + '</div></div>';
-    }).join('');
-  }
-  _rvTotal = all.length; _rvProg(); showScreen('review');
-}
-
-let _rvTotal = 0;
-function _rvProg() {
-  const areas = Array.from(document.querySelectorAll('#review-grid textarea'));
-  const done  = areas.filter(function(a){ return a.value.trim().length > 0; }).length;
-  const el    = document.getElementById('review-progress'); if (!el) return;
-  el.innerHTML = done + ' / ' + _rvTotal + ' captioned';
-  el.className = 'sync-status ' + (done===_rvTotal && _rvTotal>0 ? 'sync-saved' : 'sync-saving');
-}
-
-function closeReviewScreen() { showScreen('visit'); }
-
-// ── Lightbox with zoom + pan ──────────────────────────────────────────────────
-(function(){
-  let _scale=1,_tx=0,_ty=0;
-  let _dragging=false,_lastX=0,_lastY=0;
-  let _pinchDist=null,_pinchScale=1,_pinchTx=0,_pinchTy=0;
-  let _lastTap=0;
-
-  function _apply(img,animated){
-    img.style.transition=animated?'transform .2s ease':'none';
-    img.style.transform=`translate(${_tx}px,${_ty}px) scale(${_scale})`;
-  }
-
-  function _clampPan(img){
-    const r=img.getBoundingClientRect();
-    const vw=window.innerWidth,vh=window.innerHeight;
-    const overX=Math.max(0,(r.width-vw)/2);
-    const overY=Math.max(0,(r.height-vh)/2);
-    _tx=Math.max(-overX,Math.min(overX,_tx));
-    _ty=Math.max(-overY,Math.min(overY,_ty));
-  }
-
-  function _reset(img,animated){
-    _scale=1;_tx=0;_ty=0;_apply(img,animated);
-  }
-
-  function _dist(t){
-    const dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].clientY;
-    return Math.sqrt(dx*dx+dy*dy);
-  }
-  function _mid(t){
-    return{x:(t[0].clientX+t[1].clientX)/2,y:(t[0].clientY+t[1].clientY)/2};
-  }
-
-  // ── Lightbox gallery state ──
-  let _lbSrcs=[],_lbIdx=0;
-
-  function _lbSetImg(src){
-    const img=document.getElementById('lightbox-img');
-    _scale=1;_tx=0;_ty=0;
-    img.style.transition='none';img.style.transform='';
-    img.src=src;
-  }
-  function _lbUpdateNav(){
-    const multi=_lbSrcs.length>1;
-    const prev=document.getElementById('lb-prev');
-    const next=document.getElementById('lb-next');
-    const ctr=document.getElementById('lb-counter');
-    if(prev)prev.style.display=multi?'flex':'none';
-    if(next)next.style.display=multi?'flex':'none';
-    if(ctr){ctr.style.display=multi?'block':'none';ctr.textContent=multi?`${_lbIdx+1} / ${_lbSrcs.length}`:'';}
-  }
-  window.lbPrev=function(){
-    if(_lbSrcs.length<2)return;
-    _lbIdx=(_lbIdx-1+_lbSrcs.length)%_lbSrcs.length;
-    _lbSetImg(_lbSrcs[_lbIdx]);_lbUpdateNav();
-  };
-  window.lbNext=function(){
-    if(_lbSrcs.length<2)return;
-    _lbIdx=(_lbIdx+1)%_lbSrcs.length;
-    _lbSetImg(_lbSrcs[_lbIdx]);_lbUpdateNav();
-  };
-
-  window.openLightbox=function(src_or_arr,idx){
-    if(Array.isArray(src_or_arr)){_lbSrcs=src_or_arr;_lbIdx=Math.max(0,Math.min(idx||0,src_or_arr.length-1));}
-    else{_lbSrcs=[src_or_arr];_lbIdx=0;}
-    const lb=document.getElementById('lightbox');
-    _lbSetImg(_lbSrcs[_lbIdx]);
-    lb.style.display='flex';
-    _lbUpdateNav();
-    document.addEventListener('keydown',_lbKey);
-
-    // — Mouse wheel zoom —
-    lb._onWheel=function(e){
-      e.preventDefault();
-      const img=document.getElementById('lightbox-img');
-      const rect=img.getBoundingClientRect();
-      const ox=(e.clientX-rect.left-rect.width/2)/_scale;
-      const oy=(e.clientY-rect.top-rect.height/2)/_scale;
-      const delta=e.deltaY<0?1.15:1/1.15;
-      _scale=Math.max(1,Math.min(8,_scale*delta));
-      if(_scale>1){_tx+=ox*(_scale-_scale/delta);_ty+=oy*(_scale-_scale/delta);}
-      else{_tx=0;_ty=0;}
-      _clampPan(img);_apply(img,false);
-    };
-    lb.addEventListener('wheel',lb._onWheel,{passive:false});
-
-    // — Mouse drag —
-    lb._onMD=function(e){
-      if(e.target.classList.contains('lightbox-close'))return;
-      if(_scale<=1){closeLightbox();return;}
-      _dragging=true;_lastX=e.clientX;_lastY=e.clientY;
-      lb.style.cursor='grabbing';
-    };
-    lb._onMM=function(e){
-      if(!_dragging)return;
-      _tx+=e.clientX-_lastX;_ty+=e.clientY-_lastY;
-      _lastX=e.clientX;_lastY=e.clientY;
-      const img=document.getElementById('lightbox-img');
-      _clampPan(img);_apply(img,false);
-    };
-    lb._onMU=function(e){
-      if(!_dragging)return;
-      _dragging=false;lb.style.cursor='';
-    };
-    lb.addEventListener('mousedown',lb._onMD);
-    window.addEventListener('mousemove',lb._onMM);
-    window.addEventListener('mouseup',lb._onMU);
-
-    // — Touch: pinch-zoom + drag + double-tap reset —
-    lb._onTS=function(e){
-      const img=document.getElementById('lightbox-img');
-      if(e.touches.length===2){
-        e.preventDefault();
-        _pinchDist=_dist(e.touches);
-        _pinchScale=_scale;_pinchTx=_tx;_pinchTy=_ty;
-      } else if(e.touches.length===1){
-        const now=Date.now();
-        if(now-_lastTap<300){_reset(img,true);}
-        _lastTap=now;
-        _lastX=e.touches[0].clientX;_lastY=e.touches[0].clientY;
-        _pinchDist=null;
-      }
-    };
-    lb._onTM=function(e){
-      const img=document.getElementById('lightbox-img');
-      if(e.touches.length===2&&_pinchDist!==null){
-        e.preventDefault();
-        const newDist=_dist(e.touches);
-        const m=_mid(e.touches);
-        const rect=img.getBoundingClientRect();
-        const ox=(m.x-rect.left-rect.width/2)/_scale;
-        const oy=(m.y-rect.top-rect.height/2)/_scale;
-        const ratio=newDist/_pinchDist;
-        _scale=Math.max(1,Math.min(8,_pinchScale*ratio));
-        if(_scale>1){_tx=_pinchTx+ox*(_scale-_pinchScale);_ty=_pinchTy+oy*(_scale-_pinchScale);}
-        else{_tx=0;_ty=0;}
-        _clampPan(img);_apply(img,false);
-      } else if(e.touches.length===1&&_pinchDist===null&&_scale>1){
-        e.preventDefault();
-        _tx+=e.touches[0].clientX-_lastX;_ty+=e.touches[0].clientY-_lastY;
-        _lastX=e.touches[0].clientX;_lastY=e.touches[0].clientY;
-        _clampPan(img);_apply(img,false);
-      }
-    };
-    lb._onTE=function(e){
-      if(e.touches.length<2)_pinchDist=null;
-      // Horizontal swipe to navigate (single finger, not pinching, not zoomed)
-      if(e.changedTouches.length===1&&_pinchDist===null&&_scale<=1){
-        const dx=e.changedTouches[0].clientX-_lastX;
-        if(Math.abs(dx)>55){if(dx<0)lbNext();else lbPrev();}
-      }
-    };
-    lb.addEventListener('touchstart',lb._onTS,{passive:false});
-    lb.addEventListener('touchmove',lb._onTM,{passive:false});
-    lb.addEventListener('touchend',lb._onTE);
-  };
-
-  window.closeLightbox=function(){
-    const lb=document.getElementById('lightbox');
-    lb.style.display='none';
-    document.getElementById('lightbox-img').src='';
-    document.removeEventListener('keydown',_lbKey);
-    lb.removeEventListener('wheel',lb._onWheel);
-    lb.removeEventListener('mousedown',lb._onMD);
-    window.removeEventListener('mousemove',lb._onMM);
-    window.removeEventListener('mouseup',lb._onMU);
-    lb.removeEventListener('touchstart',lb._onTS);
-    lb.removeEventListener('touchmove',lb._onTM);
-    lb.removeEventListener('touchend',lb._onTE);
-    _dragging=false;_pinchDist=null;
-  };
-
-  function _lbKey(e){
-    if(e.key==='Escape')closeLightbox();
-    if(e.key==='ArrowLeft')lbPrev();
-    if(e.key==='ArrowRight')lbNext();
-    if(e.key==='0'||e.key==='+'){
-      const img=document.getElementById('lightbox-img');
-      if(e.key==='0'){_reset(img,true);}
-      else{_scale=Math.min(8,_scale*1.25);_clampPan(img);_apply(img,true);}
-    }
-  }
-})();
-
-// ── Camera capture: add to app + try to save to iOS photo library ────────────
-function addFsCamera(iid, files) {
-  if (!files || !files.length) return;
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  if (isIOS) {
-    // Web Share API (iOS 15+): opens native share sheet so user can tap "Save Image"
-    Array.from(files).forEach(f => {
-      if (navigator.canShare && navigator.canShare({ files: [f] })) {
-        navigator.share({ files: [f], title: 'Site Photo' }).catch(() => {});
+  for (const pin of pins.filter(p => p.type === 'photo')) {
+    const phs = (pin.photos || []).filter(ph => ph?.du);
+    phs.forEach((ph, pi) => {
+      const letter = String.fromCharCode(65 + pi);
+      const mime = ph.du.split(';')[0].replace('data:', '') || 'image/jpeg';
+      const ext  = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+      const filename = `pin_P${pn}${letter}.${ext}`;
+      const b64 = ph.du.split(',')[1];
+      if (b64) {
+        zip.file(filename, b64, { base64: true });
+        manifest.photos.push({ file: filename, type: 'pin', pinId: pin.id, pinNum: pn, photoIndex: pi, mime });
+        total++;
       }
     });
+    if ((pin.photos || []).length) pn++;
   }
-  // Android: camera app auto-saves to gallery — nothing extra needed
-  addFs(iid, files);
+
+  // Plan images
+  for (const pl of plans) {
+    const rec = await dbGet('planImages', `v${currentVisitId}_p${pl.id}`).catch(() => null);
+    if (!rec?.du) continue;
+    const mime = rec.du.split(';')[0].replace('data:', '') || 'image/jpeg';
+    const ext  = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
+    const filename = `plan_${pl.id}.${ext}`;
+    const b64 = rec.du.split(',')[1];
+    if (b64) {
+      zip.file(filename, b64, { base64: true });
+      manifest.photos.push({ file: filename, type: 'plan', planId: pl.id, mime });
+      total++;
+    }
+  }
+
+  zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+  const blob = await zip.generateAsync({ type: 'blob' });
+  const projTitle = document.getElementById('project-hdr-title')?.textContent?.trim() || 'Site Visit';
+  const dateStr   = (currentVisit?.visitDate || new Date().toISOString().slice(0, 10));
+  const filename  = `${projTitle} – ${dateStr} – Photos.zip`;
+  return { blob, filename, total };
 }
 
-// ── Download all photos as ZIP, named Issue 1-001, Issue 2-001 etc. ──────────
 async function downloadAllPhotos() {
   const btn = document.getElementById('dl-photos-btn');
   if (btn) { btn.disabled = true; btn.innerHTML = '<span>⏳</span> Preparing…'; }
   try {
-    const zip = new JSZip();
-    const manifest = { visitId: currentVisitId, generated: new Date().toISOString(), photos: [] };
-    let total = 0;
-
-    // ── Issue photos (unpinned) ──
-    for (const iss of issues) {
-      const pinnedIds = new Set(
-        pins.filter(p => p.sourcePhotoId != null && iss.photos.some(ph => ph.id === p.sourcePhotoId))
-            .map(p => p.sourcePhotoId)
-      );
-      let n = 1;
-      for (const ph of iss.photos.filter(ph => !pinnedIds.has(ph.id))) {
-        if (!ph?.du) { n++; continue; }
-        const mime = ph.du.split(';')[0].replace('data:', '') || 'image/jpeg';
-        const ext  = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
-        const filename = `finding_${iss.id}_photo_${n}.${ext}`;
-        const b64 = ph.du.split(',')[1];
-        if (b64) {
-          zip.file(filename, b64, { base64: true });
-          manifest.photos.push({ file: filename, type: 'issue', issueId: iss.id, photoId: ph.id, n, mime });
-          total++; n++;
-        }
-      }
-    }
-
-    // ── Pin photos ──
-    let pn = 1;
-    for (const pin of pins.filter(p => p.type === 'photo')) {
-      const phs = (pin.photos || []).filter(ph => ph?.du);
-      phs.forEach((ph, pi) => {
-        const letter = String.fromCharCode(65 + pi);
-        const mime = ph.du.split(';')[0].replace('data:', '') || 'image/jpeg';
-        const ext  = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
-        const filename = `pin_P${pn}${letter}.${ext}`;
-        const b64 = ph.du.split(',')[1];
-        if (b64) {
-          zip.file(filename, b64, { base64: true });
-          manifest.photos.push({ file: filename, type: 'pin', pinId: pin.id, pinNum: pn, photoIndex: pi, mime });
-          total++;
-        }
-      });
-      if ((pin.photos || []).length) pn++;
-    }
-
-    // ── Plan images ──
-    for (const pl of plans) {
-      const rec = await dbGet('planImages', `v${currentVisitId}_p${pl.id}`).catch(() => null);
-      if (!rec?.du) continue;
-      const mime = rec.du.split(';')[0].replace('data:', '') || 'image/jpeg';
-      const ext  = mime.split('/')[1]?.replace('jpeg', 'jpg') || 'jpg';
-      const filename = `plan_${pl.id}.${ext}`;
-      const b64 = rec.du.split(',')[1];
-      if (b64) {
-        zip.file(filename, b64, { base64: true });
-        manifest.photos.push({ file: filename, type: 'plan', planId: pl.id, mime });
-        total++;
-      }
-    }
-
+    const { blob, filename, total } = await buildPhotoZipBlob();
     if (!total) { toast('No photos to download'); return; }
-
-    // Include manifest so the PC can match each photo back to its finding/pin/plan
-    zip.file('manifest.json', JSON.stringify(manifest, null, 2));
-
-    const blob = await zip.generateAsync({ type: 'blob' });
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href = url;
-    const projTitle = document.getElementById('project-hdr-title')?.textContent?.trim() || 'Site Visit';
-    const dateStr   = (currentVisit?.visitDate || new Date().toISOString().slice(0, 10));
-    a.download = `${projTitle} – ${dateStr} – Photos.zip`;
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 2000);
     toast(`✓ ${total} photo${total > 1 ? 's' : ''} downloaded`);
@@ -36935,6 +36672,33 @@ async function importPhotosFromZip(visitId, file, onProgress) {
     renderAll();
   }
   return { imported };
+}
+</script>
+
+<!-- ════════════════════════════════════════════════════════
+     SAVE PHOTOS PROMPT (shown after manual sync)
+════════════════════════════════════════════════════════ -->
+<div id="modal-save-photos-prompt" class="modal hide" style="max-width:380px;width:92vw">
+  <div class="modal-hdr">☁ Synced</div>
+  <div class="modal-body" style="padding:20px;gap:0">
+    <p style="font-size:14px;color:var(--clw-dark);font-weight:700;margin:0 0 6px">Visit data saved to Drive.</p>
+    <p style="font-size:13px;color:var(--clw-mid);line-height:1.6;margin:0">Would you like to save your photos now? You'll get a zip file to transfer to your PC and restore photos later.</p>
+  </div>
+  <div class="modal-footer" style="gap:8px">
+    <button class="btn-cancel" onclick="clwDismissSavePhotosPrompt()">Not now</button>
+    <button class="btn-primary" onclick="clwDismissSavePhotosPrompt();handleSavePhotos()">Save Photos</button>
+  </div>
+</div>
+<div id="modal-save-photos-prompt-backdrop" class="modal-backdrop hide" onclick="clwDismissSavePhotosPrompt()"></div>
+
+<script>
+function clwShowSavePhotosPrompt() {
+  document.getElementById('modal-save-photos-prompt').classList.remove('hide');
+  document.getElementById('modal-save-photos-prompt-backdrop').classList.remove('hide');
+}
+function clwDismissSavePhotosPrompt() {
+  document.getElementById('modal-save-photos-prompt').classList.add('hide');
+  document.getElementById('modal-save-photos-prompt-backdrop').classList.add('hide');
 }
 </script>
 </body>
