@@ -112,8 +112,8 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .issue-ti{flex:1;border:none;background:transparent;font-size:14px;font-weight:700;font-family:inherit;color:var(--clw-dark);padding:0;min-width:0}
 .issue-ti:focus{outline:none}
 .issue-ti::placeholder{color:#bbb;font-weight:400}
-.issue-del{background:none;border:none;cursor:pointer;color:#ccc;font-size:20px;line-height:1;padding:2px 5px;border-radius:4px;transition:all .12s}
-.issue-del:hover{color:#e53e3e;background:#fff0f0}
+.issue-del{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:#e53e3e;border:none;cursor:pointer;color:white;font-size:14px;font-weight:900;line-height:1;padding:0;transition:all .12s;flex-shrink:0}
+.issue-del:hover{filter:brightness(1.12)}
 .issue-body{padding:10px 10px 12px}
 .add-iss{border:2px dashed var(--clw-grey);border-radius:var(--r);background:none;width:100%;padding:12px;cursor:pointer;font-size:13px;font-weight:700;font-family:inherit;color:var(--clw-mid);transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:4px}
 .add-iss:hover{border-color:var(--clw-blue);color:var(--clw-blue);background:var(--clw-blue-lt)}
@@ -216,9 +216,6 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .pap-row label{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--clw-mid)}
 .pap-row select,.pap-row input,.pap-row textarea{border:1.5px solid var(--brd);border-radius:6px;padding:7px 10px;font-size:16px;font-family:inherit;color:var(--clw-dark);width:100%}
 .pap-row textarea{min-height:70px;resize:vertical}
-.pin-type-row{display:flex;gap:8px;margin-bottom:10px}
-.pin-type-btn{flex:1;padding:9px 12px;border-radius:8px;border:1.5px solid var(--brd);background:white;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .15s;text-align:center}
-.pin-type-btn.active{border-color:var(--clw-blue);background:var(--clw-blue);color:white}
 .pin-photo-opts{display:flex;gap:8px;margin-bottom:10px}
 .pin-photo-opt{flex:1;padding:7px 10px;border-radius:7px;border:1.5px solid var(--brd);background:white;font-size:12px;font-weight:700;font-family:inherit;cursor:pointer;transition:all .15s;text-align:center}
 .pin-photo-opt.active{border-color:var(--clw-blue);background:rgba(0,108,170,.08);color:var(--clw-blue)}
@@ -242,18 +239,11 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 
 /* ── Issue collapse ── */
 .issue-card.collapsed .issue-body{display:none}
-.iss-collapse-btn{background:none;border:none;cursor:pointer;color:var(--clw-mid);font-size:16px;padding:2px 8px;line-height:1;font-family:inherit;transition:color .12s;flex-shrink:0;margin-left:auto}
-.iss-collapse-btn:hover{color:var(--clw-blue)}
+.iss-collapse-btn{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:none;cursor:pointer;font-size:13px;font-weight:900;line-height:1;font-family:inherit;transition:all .12s;flex-shrink:0;margin-left:auto;background:#f5a623;color:white}
+.iss-collapse-btn:hover{filter:brightness(1.12)}
 .minimise-all-wrap{display:flex;align-items:center;justify-content:flex-end;margin-bottom:6px}
 .minimise-all-btn{border:1.5px solid var(--brd);border-radius:20px;background:white;padding:5px 14px;cursor:pointer;font-size:11px;font-weight:700;font-family:inherit;color:var(--clw-mid);transition:all .15s}
 .minimise-all-btn:hover{border-color:var(--clw-blue);color:var(--clw-blue)}
-/* ── Issues summary bar ── */
-#issues-summary{display:flex;flex-wrap:wrap;gap:4px;margin-bottom:10px;padding:8px 10px;background:#f8f9fa;border:1.5px solid var(--brd);border-radius:var(--r)}
-#issues-summary:empty{display:none}
-.iss-sum-label{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--clw-mid);width:100%;margin-bottom:3px}
-.iss-sum-item{display:flex;align-items:center;gap:5px;font-size:11px;font-weight:700;color:var(--clw-dark);cursor:pointer;padding:3px 9px;border-radius:12px;background:white;border:1px solid var(--brd);transition:all .12s}
-.iss-sum-item:hover{border-color:var(--clw-blue);color:var(--clw-blue)}
-.iss-sum-badge{background:var(--clw-blue);color:white;border-radius:8px;padding:1px 6px;font-size:10px;font-weight:800}
 /* ── Pin action buttons ── */
 .pap-movepin{background:#f59e0b;color:white;border:none;padding:10px 10px;border-radius:8px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;transition:all .15s;white-space:nowrap}
 .pap-movepin:hover{background:#d97706}
@@ -409,9 +399,12 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
     </div>
 
     <!-- Project Details -->
-    <div class="card">
-      <div class="card-hdr">Visit Details</div>
-      <div class="card-body">
+    <div class="card" id="visit-details-card">
+      <div class="card-hdr" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Visit Details</span>
+        <button id="visit-details-toggle" onclick="toggleVisitDetails()" title="Minimise/expand" style="display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;border:none;cursor:pointer;font-size:13px;font-weight:900;line-height:1;font-family:inherit;transition:all .12s;flex-shrink:0;background:#f5a623;color:white">−</button>
+      </div>
+      <div class="card-body" id="visit-details-body">
         <div class="fgrid">
           <div class="fg full"><label>Subject</label><input id="f-subj" placeholder="e.g. CMT Site Visit"></div>
           <div class="fg"><label>Client <span class="proj-lock-badge">🔒 from project</span></label><input id="f-cli" readonly class="proj-field-readonly" placeholder="Set on project page"></div>
@@ -477,8 +470,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
         <button onclick="openReviewScreen()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:white;padding:5px 12px;border-radius:16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">📷 Review Photos</button>
       </div>
       <div class="card-body" style="padding:14px">
-        <div id="issues-summary"></div>
-        <div class="minimise-all-wrap"><button class="minimise-all-btn" onclick="minimiseAllIssues()">▲ Minimise All</button></div>
+        <div class="minimise-all-wrap"><button class="minimise-all-btn" onclick="minimiseAllIssues()">− Minimise All</button></div>
         <div class="issues-wrap" id="ilist"></div>
         <button class="add-iss" onclick="addIssue()">＋ Add Issue / Finding</button>
       </div>
@@ -526,6 +518,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
   <div class="po-tabs" id="plan-tabs"></div>
   <div id="plan-canvas-wrap">
     <canvas id="plan-canvas"></canvas>
+    <div id="plan-hint-edit" style="position:absolute;bottom:46px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.62);color:white;padding:7px 16px;border-radius:20px;font-size:12px;font-weight:700;text-align:center;pointer-events:none;white-space:nowrap;z-index:10">Tap on a pin to edit the pin</div>
     <div id="plan-hint">Tap on the plan to drop a pin</div>
     <!-- Pin assign panel -->
     <div id="move-pin-hint">✋ Tap &amp; drag the pin to move it<br><small style="font-weight:600;opacity:.85">Tap anywhere else when done</small></div>
@@ -535,10 +528,6 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
         <label>Link to Issue (optional)</label>
         <select id="pin-issue-select" onchange="onPinIssueChange()"></select>
         <input id="pin-new-issue-input" class="pap-new-issue hide" placeholder="Type new issue title…">
-      </div>
-      <div class="pin-type-row">
-        <button class="pin-type-btn active" data-type="photo" onclick="setPinType('photo')">📷 Photo</button>
-        <button class="pin-type-btn" data-type="note" onclick="setPinType('note')">✏️ Note</button>
       </div>
       <div id="pin-photo-gallery" class="pin-photo-gallery" style="display:none"></div>
       <div id="pin-merge-row" class="pap-row hide" style="background:rgba(0,108,170,.06);border-radius:8px;padding:8px 10px;margin-bottom:4px">
@@ -33860,7 +33849,7 @@ let currentProjectId=null, currentVisitId=null;
 let _saveTimer=null, _lastSaved=null;
 let issues=[],iseq=0,pseq=0;
 let plans=[],planSeq=0,pins=[],pnseq=0;
-let _activePlanId=null,_contextIssueId=null,_pendingPin=null,_pendingPinType='photo',_pendingPhotoMode='take',_editingPinId=null,_draggingPin=null,_retroPin=null,_droppedPhotoData=null,_pendingPinEdit=null,_moveModePin=null;
+let _activePlanId=null,_contextIssueId=null,_pendingPin=null,_pendingPinType='photo',_pendingPhotoMode='take',_editingPinId=null,_draggingPin=null,_draggingPendingPin=false,_retroPin=null,_droppedPhotoData=null,_pendingPinEdit=null,_moveModePin=null,_lastTapTime=0,_lastTapPinId=null;
 let _collapsedIssues=new Set();
 let _planCrops={};           // {planId:{x1,y1,x2,y2}} — fractions of full image
 let _inlineCropMode=false,_icDragging=false,_icStart=null,_inlinePlanImgCache=null;
@@ -34220,6 +34209,18 @@ function b64ToArr(s){const b=atob(s),a=new Uint8Array(b.length);for(let i=0;i<b.
 function toast(msg,dur=3000){const t=document.getElementById('toast');if(!t)return;t.textContent=msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),dur);}
 
 
+// ── Visit details collapse ──────────────────────────────────────────
+function toggleVisitDetails(){
+  const body=document.getElementById('visit-details-body');
+  const btn=document.getElementById('visit-details-toggle');
+  if(!body||!btn)return;
+  const collapsed=body.style.display==='none';
+  body.style.display=collapsed?'':'none';
+  btn.textContent=collapsed?'−':'⤢';
+  btn.style.background=collapsed?'#f5a623':'#27ae60';
+  btn.title=collapsed?'Minimise':'Expand';
+}
+
 // ── Issue collapse ──────────────────────────────────────────────────
 function toggleIssueCollapse(id){
   if(_collapsedIssues.has(id))_collapsedIssues.delete(id);
@@ -34233,24 +34234,9 @@ function minimiseAllIssues(){
   renderAll();
 }
 
-// ── Issues summary ──────────────────────────────────────────────────
-function renderIssuesSummary(){
-  const el=document.getElementById('issues-summary');if(!el)return;
-  if(!issues.length){el.innerHTML='';return;}
-  el.innerHTML='<div class="iss-sum-label">Issues at a glance</div>'+
-    issues.map((iss,idx)=>{
-      const pCount=pins.filter(p=>p.issueId===iss.id).length;
-      return`<div class="iss-sum-item" onclick="scrollToIssue(${iss.id})" title="${e(iss.title||'Issue '+(idx+1))}">
-        <span class="iss-sum-badge">${idx+1}</span>
-        <span style="overflow:hidden;text-overflow:ellipsis;max-width:120px">${e(iss.title||'Untitled')}</span>
-        ${pCount?`<span style="color:var(--clw-mid);font-weight:600;font-size:10px">📍${pCount}</span>`:''}
-      </div>`;
-    }).join('');
-}
 function scrollToIssue(id){
   const card=document.querySelector(`.issue-card[data-id="${id}"]`);
   if(card){card.scrollIntoView({behavior:'smooth',block:'start'});
-    // If collapsed, expand it
     if(_collapsedIssues.has(id)){_collapsedIssues.delete(id);renderAll();}
   }
 }
@@ -34295,11 +34281,11 @@ function addAnotherPin(){
 }
 
 // ── Issues & Photos ───────────────────────────────────────────
-function addIssue(){issues.push({id:++iseq,title:'',desc:'',photos:[]});renderAll();renderIssuesSummary();saveSt();}
+function addIssue(){issues.push({id:++iseq,title:'',desc:'',photos:[]});renderAll();saveSt();}
 
 function delIssue(id){
   if(!confirm('Remove this finding?'))return;
-  issues=issues.filter(i=>i.id!==id);_collapsedIssues.delete(id);renderAll();renderIssuesSummary();saveSt();
+  issues=issues.filter(i=>i.id!==id);_collapsedIssues.delete(id);renderAll();saveSt();
 }
 
 // ── Issue reorder ─────────────────────────────────────────────
@@ -34362,10 +34348,8 @@ function issDragEnd(){
 function renderAll(){
   const wrap=document.getElementById('ilist');if(!wrap)return;
   if(!issues.length){wrap.innerHTML='';return;}
-  // Sync collapse buttons (toggle icon based on current state)
-  renderIssuesSummary();
   const _minBtn=document.querySelector('.minimise-all-btn');
-  if(_minBtn)_minBtn.textContent=issues.length&&issues.every(i=>_collapsedIssues.has(i.id))?'▼ Expand All':'▲ Minimise All';
+  if(_minBtn)_minBtn.textContent=issues.length&&issues.every(i=>_collapsedIssues.has(i.id))?'⤢ Expand All':'− Minimise All';
   wrap.innerHTML=issues.map((iss,idx)=>`
   <div class="issue-card${_collapsedIssues.has(iss.id)?' collapsed':''}" data-id="${iss.id}" draggable="true"
     ondragstart="issDragStart(event,${iss.id})"
@@ -34379,8 +34363,8 @@ function renderAll(){
         <button class="iss-move-btn" onclick="event.stopPropagation();issMove(${iss.id},1)" title="Move down"${idx===issues.length-1?' disabled':''}>▼</button>
       </span>
       <div class="issue-num">Issue ${idx+1}</div>
-      <input class="issue-ti" placeholder="Finding title…" value="${e(iss.title)}" oninput="saveSt();renderIssuesSummary()">
-      <button class="iss-collapse-btn" onclick="event.stopPropagation();toggleIssueCollapse(${iss.id})" title="Minimise/expand">${_collapsedIssues.has(iss.id)?'▶':'▼'}</button>
+      <input class="issue-ti" placeholder="Finding title…" value="${e(iss.title)}" oninput="saveSt()">
+      <button class="iss-collapse-btn" onclick="event.stopPropagation();toggleIssueCollapse(${iss.id})" title="Minimise/expand" style="background:${_collapsedIssues.has(iss.id)?'#27ae60':'#f5a623'}">${_collapsedIssues.has(iss.id)?'⤢':'−'}</button>
       <button class="issue-del" onclick="delIssue(${iss.id})" title="Remove">×</button>
     </div>
     <div class="issue-body">
@@ -34795,6 +34779,16 @@ document.addEventListener('DOMContentLoaded',()=>{
   const canvas=document.getElementById('plan-canvas');
   if(!canvas)return;
   canvas.addEventListener('mousedown',ev=>{
+    // Check if pressing on the pending pin — if so, drag it directly
+    if(_pendingPin&&_planImg){
+      const ppx=_panX+_overlayPinX(_pendingPin.x)*_zoom;
+      const ppy=_panY+_overlayPinY(_pendingPin.y)*_zoom;
+      if(Math.hypot(ev.offsetX-ppx,ev.offsetY-ppy)<=24){
+        _draggingPendingPin=true;_moved=false;_isDragging=false;canvas.style.cursor='grabbing';
+        if(_tip)_tip.style.display='none';
+        return;
+      }
+    }
     // Check if pressing on an existing pin — if so, prepare to drag it
     if(_planImg){
       const planPins=pins.filter(p=>p.planId===_activePlanId);
@@ -34813,7 +34807,17 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
   const _tip=document.getElementById('pin-hover-tip');
   canvas.addEventListener('mousemove',ev=>{
-    // Moving a pin
+    // Dragging the pending (new) pin marker
+    if(_draggingPendingPin&&_pendingPin&&_planImg){
+      _moved=true;
+      if(_tip)_tip.style.display='none';
+      const _dp=_canvasToPin(ev.offsetX,ev.offsetY);const _dc=_planCrops[_activePlanId];
+      _pendingPin.x=Math.max(_dc?_dc.x1:0,Math.min(_dc?_dc.x2:1,_dp.x));
+      _pendingPin.y=Math.max(_dc?_dc.y1:0,Math.min(_dc?_dc.y2:1,_dp.y));
+      _drawPlan();
+      return;
+    }
+    // Moving an existing pin
     if(_draggingPin&&_planImg){
       _moved=true;
       if(_tip)_tip.style.display='none';
@@ -34858,10 +34862,15 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
   canvas.addEventListener('mouseleave',()=>{
     if(_tip)_tip.style.display='none';
+    if(_draggingPendingPin){_draggingPendingPin=false;canvas.style.cursor='crosshair';}
     if(_draggingPin&&_moved){_moveModePin=null;document.getElementById('move-pin-hint').style.display='none';saveSt();renderAll();renderInlinePlan();toast('Pin moved ✓');}
     _draggingPin=null;canvas.style.cursor='crosshair';
   });
   canvas.addEventListener('mouseup',ev=>{
+    if(_draggingPendingPin){
+      _draggingPendingPin=false;canvas.style.cursor='crosshair';
+      return;
+    }
     if(_draggingPin){
       if(_moved){
         _moveModePin=null;document.getElementById('move-pin-hint').style.display='none';
@@ -34882,11 +34891,17 @@ document.addEventListener('DOMContentLoaded',()=>{
   },{passive:false});
   canvas.addEventListener('touchstart',ev=>{
     _touches=Array.from(ev.touches);_moved=false;
-    // Check if touching near an existing pin — prepare to drag it
     if(ev.touches.length===1&&_planImg){
       const r=canvas.getBoundingClientRect();
       const cx=ev.touches[0].clientX-r.left;
       const cy=ev.touches[0].clientY-r.top;
+      // Check if touching the pending pin marker — allow smooth drag
+      if(_pendingPin){
+        const ppx=_panX+_overlayPinX(_pendingPin.x)*_zoom;
+        const ppy=_panY+_overlayPinY(_pendingPin.y)*_zoom;
+        if(Math.hypot(cx-ppx,cy-ppy)<=30){_draggingPendingPin=true;_moved=false;return;}
+      }
+      // Check if touching near an existing pin — prepare to drag it
       const planPins=pins.filter(p=>p.planId===_activePlanId);
       for(let i=0;i<planPins.length;i++){
         const p=planPins[i];
@@ -34904,8 +34919,17 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(t.length===1&&_touches?.length===1){
       const dx=t[0].clientX-_touches[0].clientX,dy=t[0].clientY-_touches[0].clientY;
       if(Math.abs(dx)>3||Math.abs(dy)>3)_moved=true;
-      if(_draggingPin&&_planImg){
-        // Move the pin, not the plan
+      if(_draggingPendingPin&&_pendingPin&&_planImg){
+        // Drag the pending pin marker smoothly
+        ev.preventDefault();
+        const r=canvas.getBoundingClientRect();
+        const _dp=_canvasToPin(t[0].clientX-r.left,t[0].clientY-r.top);
+        const _dc=_planCrops[_activePlanId];
+        _pendingPin.x=Math.max(_dc?_dc.x1:0,Math.min(_dc?_dc.x2:1,_dp.x));
+        _pendingPin.y=Math.max(_dc?_dc.y1:0,Math.min(_dc?_dc.y2:1,_dp.y));
+      } else if(_draggingPin&&_planImg){
+        // Move an existing pin
+        ev.preventDefault();
         const r=canvas.getBoundingClientRect();
         const _dp=_canvasToPin(t[0].clientX-r.left,t[0].clientY-r.top);
         const _dc=_planCrops[_activePlanId];
@@ -34916,7 +34940,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       }
       _drawPlan();
     } else if(t.length===2&&_touches?.length===2){
-      _draggingPin=null; // cancel pin drag if pinch gesture starts
+      _draggingPin=null;_draggingPendingPin=false; // cancel drags if pinch starts
       const d0=Math.hypot(_touches[0].clientX-_touches[1].clientX,_touches[0].clientY-_touches[1].clientY);
       const d1=Math.hypot(t[0].clientX-t[1].clientX,t[0].clientY-t[1].clientY);
       const f=d1/d0;const r=canvas.getBoundingClientRect();
@@ -34924,8 +34948,9 @@ document.addEventListener('DOMContentLoaded',()=>{
       _panX=cx+(_panX-cx)*f;_panY=cy+(_panY-cy)*f;_zoom*=f;_moved=true;
     }
     _touches=t;_drawPlan();
-  },{passive:true});
+  },{passive:false});
   canvas.addEventListener('touchend',ev=>{
+    if(_draggingPendingPin){_draggingPendingPin=false;return;}
     if(_draggingPin){
       if(_moved){_moveModePin=null;document.getElementById('move-pin-hint').style.display='none';saveSt();renderAll();renderInlinePlan();toast('Pin moved ✓');}
       else{_openPinEdit(_draggingPin,pins.indexOf(_draggingPin)+1);}
@@ -34979,13 +35004,30 @@ function _handleTap(cx,cy){
     }
     return;
   }
-  // Check if tapping near an existing pin — if so, open edit panel
+  // Check if tapping near an existing pin — single tap = edit, double-tap = move
   const planPins=pins.filter(p=>p.planId===_activePlanId);
   for(let i=0;i<planPins.length;i++){
     const pin=planPins[i];
     const px=_panX+_overlayPinX(pin.x)*_zoom;
     const py=_panY+_overlayPinY(pin.y)*_zoom;
-    if(Math.hypot(cx-px,cy-py)<=20){_openPinEdit(pin,pins.indexOf(pin)+1);return;}
+    if(Math.hypot(cx-px,cy-py)<=20){
+      const now=Date.now();
+      if(_lastTapPinId===pin.id&&(now-_lastTapTime)<350){
+        // Double-tap — prompt to move
+        _lastTapTime=0;_lastTapPinId=null;
+        if(confirm('Move this pin to a new location?\n\nTap OK then drag the pin where you want it.')){
+          _moveModePin=pin.id;
+          const hint=document.getElementById('move-pin-hint');
+          if(hint)hint.style.display='block';
+          _drawPlan();
+        }
+      } else {
+        // Single tap — open edit
+        _lastTapTime=now;_lastTapPinId=pin.id;
+        _openPinEdit(pin,pins.indexOf(pin)+1);
+      }
+      return;
+    }
   }
   const {x,y}=_canvasToPin(cx,cy);
   if(!_inPlanBounds(x,y))return;
@@ -35020,10 +35062,9 @@ function _handleTap(cx,cy){
 
 function setPinType(type){
   _pendingPinType=type;
-  document.querySelectorAll('.pin-type-btn').forEach(b=>b.classList.toggle('active',b.dataset.type===type));
-  // Note area is always visible so users can add notes to both photo and note pins
+  // Photo opts and notes are always visible — nothing to hide/show
   document.getElementById('pin-note-area').classList.remove('hide');
-  document.getElementById('pin-photo-opts').classList.toggle('hide',type!=='photo');
+  document.getElementById('pin-photo-opts').classList.remove('hide');
 }
 
 function setPinPhotoMode(mode){
@@ -35136,15 +35177,11 @@ function _resetPanelToNewMode(){
   _hideDropZone();
   const gal=document.getElementById('pin-photo-gallery');if(gal){gal.style.display='none';gal.innerHTML='';}
   const mr=document.getElementById('pin-merge-row');if(mr)mr.classList.add('hide');
-  // Show type toggle for new pins
-  const tr=document.querySelector('.pin-type-row');if(tr)tr.style.display='';
 }
 
 function _openPinEdit(pin,pinNum){
   _editingPinId=pin.id;_pendingPin=null;
   _pendingPinType=pin.type;_pendingPhotoMode='add';
-  // Hide the Photo/Note type toggle in edit mode — type is already set, notes are always visible
-  const _typeRow=document.querySelector('.pin-type-row');if(_typeRow)_typeRow.style.display='none';
   // Populate issue select with current pin's issue pre-selected
   const sel=document.getElementById('pin-issue-select');
   sel.innerHTML='<option value="0">— General / no specific issue —</option>'+
@@ -36814,28 +36851,4 @@ async function importPhotosFromZip(visitId, file, onProgress) {
 <!-- ════════════════════════════════════════════════════════
      SAVE PHOTOS PROMPT (shown after manual sync)
 ════════════════════════════════════════════════════════ -->
-<div id="modal-save-photos-prompt" class="modal hide" style="max-width:380px;width:92vw">
-  <div class="modal-hdr">☁ Synced</div>
-  <div class="modal-body" style="padding:20px;gap:0">
-    <p style="font-size:14px;color:var(--clw-dark);font-weight:700;margin:0 0 6px">Visit data saved to Drive.</p>
-    <p style="font-size:13px;color:var(--clw-mid);line-height:1.6;margin:0">Would you like to save your photos now? You'll get a zip file to transfer to your PC and restore photos later.</p>
-  </div>
-  <div class="modal-footer" style="gap:8px">
-    <button class="btn-cancel" onclick="clwDismissSavePhotosPrompt()">Not now</button>
-    <button class="btn-primary" onclick="clwDismissSavePhotosPrompt();handleSavePhotos()">Save Photos</button>
-  </div>
-</div>
-<div id="modal-save-photos-prompt-backdrop" class="modal-backdrop hide" onclick="clwDismissSavePhotosPrompt()"></div>
-
-<script>
-function clwShowSavePhotosPrompt() {
-  document.getElementById('modal-save-photos-prompt').classList.remove('hide');
-  document.getElementById('modal-save-photos-prompt-backdrop').classList.remove('hide');
-}
-function clwDismissSavePhotosPrompt() {
-  document.getElementById('modal-save-photos-prompt').classList.add('hide');
-  document.getElementById('modal-save-photos-prompt-backdrop').classList.add('hide');
-}
-</script>
-</body>
-</html>
+<div id="modal-save-photos-prompt" class=
