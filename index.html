@@ -36102,11 +36102,12 @@ window.addEventListener('offline', () => clwSetSyncEl('offline'));
 async function clwManualSync() {
   if (!CLW_GOOGLE.SCRIPT_URL) { toast('Google Drive not configured — add your Script URL in the app settings.', 5000); return; }
   if (!navigator.onLine) { toast('You appear to be offline — connect to WiFi first.', 4000); return; }
-  await clwProcessQueue();
-  // After sync, offer to save the photo zip if there are photos on this visit
+  // Show save photos prompt immediately so user can do both at the same time
   const hasPhotos = (issues||[]).some(i=>(i.photos||[]).some(p=>p.du)) ||
                     (pins||[]).some(p=>p.type==='photo'&&(p.photos||[]).some(ph=>ph.du));
   if (hasPhotos) clwShowSavePhotosPrompt();
+  // Sync runs in background — doesn't block the photo save
+  clwProcessQueue();
 }
 
 // ── Save / download photos (iOS-aware) ───────────────────────
@@ -36205,7 +36206,7 @@ async function buildPhotoZipBlob() {
   zip.file('manifest.json', JSON.stringify(manifest, null, 2));
   const blob = await zip.generateAsync({ type: 'blob' });
   const projTitle = document.getElementById('project-hdr-title')?.textContent?.trim() || 'Site Visit';
-  const dateStr   = (currentVisit?.visitDate || new Date().toISOString().slice(0, 10));
+  const dateStr   = (document.getElementById('f-date')?.value || new Date().toISOString().slice(0, 10));
   const filename  = `${projTitle} – ${dateStr} – Photos.zip`;
   return { blob, filename, total };
 }
