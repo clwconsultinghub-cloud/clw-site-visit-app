@@ -352,6 +352,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
     <div class="screen-top">
       <h2 class="screen-title">Projects</h2>
       <div style="display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end">
+        <button class="add-btn" style="background:rgba(0,108,170,.12);color:var(--clw-blue);border:1.5px solid var(--clw-blue)" onclick="clwForceRefresh()" title="Reload the app and fetch the latest version from the server">⟳ Refresh App</button>
         <button class="add-btn" style="background:rgba(0,108,170,.12);color:var(--clw-blue);border:1.5px solid var(--clw-blue)" onclick="clwOpenDriveBrowser()">☁ Load from Drive</button>
         <button class="add-btn" onclick="newProject()">+ New Project</button>
       </div>
@@ -402,6 +403,7 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
       <div id="sync-status-v" class="sync-status sync-saved">● Saved</div>
       <button id="manual-sync-btn" class="gen-btn hide" onclick="clwManualSync()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);box-shadow:none"><span>☁</span> Sync</button>
       <button class="gen-btn" id="dl-photos-btn" onclick="handleSavePhotos()" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);box-shadow:none"><span id="dl-photos-icon">⬇️</span> <span id="dl-photos-label">Save Photos</span></button>
+      <button class="gen-btn" id="dl-data-btn" onclick="downloadVisitDataBackup()" title="Download all findings, notes and details for this visit as a backup file — works offline, doesn't use Google Drive" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);box-shadow:none"><span>💾</span> Save Data</button>
       <button class="gen-btn" id="gen-btn" onclick="generateReport()"><span>📄</span> Generate Report</button>
     </div>
     <div id="sync-hint"></div>
@@ -34292,6 +34294,14 @@ function duBuf(du){const b=atob(du.split(',')[1]),a=new ArrayBuffer(b.length),v=
 function b64ToArr(s){const b=atob(s),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a;}
 function toast(msg,dur=3000){const t=document.getElementById('toast');if(!t)return;t.textContent=msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),dur);}
 
+// Force a fresh copy of the app from the server, bypassing the browser/CDN cache.
+// Useful after an update has been pushed to GitHub — a normal refresh can
+// sometimes keep showing an old cached copy of the page.
+function clwForceRefresh(){
+  const url = location.pathname + '?refresh=' + Date.now();
+  location.href = url;
+}
+
 
 // ── Visit details collapse ──────────────────────────────────────────
 function toggleVisitDetails(){
@@ -36632,6 +36642,49 @@ async function downloadAllPhotos() {
     toast('Download error: ' + ex.message, 5000);
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '<span>⬇️</span> Save Photos'; }
+  }
+}
+
+// ── Local data-only backup (no photos, no network) ─────────────────────────
+// Separate from the photo zip on purpose — this file is small (text only) and
+// safe to email, AirDrop or store anywhere, independent of Google Drive and
+// independent of the browser's own storage.
+async function downloadVisitDataBackup() {
+  const btn = document.getElementById('dl-data-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span>⏳</span> Preparing…'; }
+  try {
+    const s = colState(); // pulls the latest typed values straight off the screen
+
+    // Strip photo binaries — those live in the separate "Save Photos" zip.
+    const safe = {
+      backupType:   'CLW Site Visit — Data Backup',
+      generated:    new Date().toISOString(),
+      visitId:      currentVisitId,
+      projectId:    currentProjectId,
+      reportType:   s.rType,
+      concIncluded: s.concIncluded,
+      visitTitle:   s.visitTitle,
+      f:            s.f,
+      issues: (s.issues || []).map(iss => ({ ...iss, photos: (iss.photos || []).map(ph => ({ ...ph, du: '[see photo file]' })) })),
+      pins:   (s.pins   || []).map(pin => ({ ...pin, photos: (pin.photos || []).map(ph => ph?.du ? { ...ph, du: '[see photo file]' } : ph) })),
+      plans:      s.plans,
+      planCrops:  s.planCrops
+    };
+
+    const blob = new Blob([JSON.stringify(safe, null, 2)], { type: 'application/json' });
+    const projTitle = document.getElementById('project-hdr-title')?.textContent?.trim() || 'Site Visit';
+    const dateStr   = (document.getElementById('f-date')?.value || new Date().toISOString().slice(0, 10));
+    const filename  = `${projTitle} – ${dateStr} – Data.json`;
+    const url = URL.createObjectURL(blob);
+    const a   = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    toast('✓ Visit data backed up');
+  } catch (ex) {
+    toast('Backup error: ' + ex.message, 5000);
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span>💾</span> Save Data'; }
   }
 }
 
