@@ -295,6 +295,11 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 .lb-prev{left:8px}
 .lb-next{right:8px}
 .lb-counter{position:fixed;bottom:44px;left:50%;transform:translateX(-50%);color:rgba(255,255,255,.65);font-size:12px;font-weight:700;pointer-events:none;z-index:2001;font-family:'Mulish',Arial,sans-serif;letter-spacing:.3px}
+.lightbox-toolbar{position:fixed;top:14px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:2001}
+.lb-rotate{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.4);color:#fff;font-size:17px;font-weight:800;padding:6px 13px;border-radius:16px;cursor:pointer;line-height:1;transition:background .15s,opacity .15s;font-family:'Mulish',Arial,sans-serif}
+.lb-rotate:hover{background:rgba(255,255,255,.28)}
+.lb-rotate:disabled{opacity:.4;cursor:default}
+.lb-rotate.lb-rotate-180{font-size:11px;letter-spacing:.3px}
 .pt{cursor:zoom-in}
 /* ── Project-locked fields (read-only in visit form) ── */
 .proj-field-readonly{background:#f0f6fb!important;color:var(--clw-mid)!important;cursor:default!important;border-color:#c8dce9!important;font-style:italic}
@@ -438,19 +443,22 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
       </div>
     </div>
 
-    <!-- Introduction & Summary -->
+    <!-- Introduction -->
     <div class="card">
-      <div class="card-hdr">Introduction &amp; Summary</div>
+      <div class="card-hdr">Introduction</div>
       <div class="card-body">
         <textarea id="ta-sum" rows="4" placeholder="Provide an introduction and summary of the visit…"></textarea>
       </div>
     </div>
 
-    <!-- General Observations -->
+    <!-- Site Visit Summary -->
     <div class="card">
-      <div class="card-hdr" style="display:flex;align-items:center;justify-content:space-between">
-        <span>General Observations</span>
-        <a href="#plans-pins-section" style="font-size:11px;font-weight:700;color:white;text-decoration:none;opacity:.85;white-space:nowrap" title="Jump to Plans & Location Pins"><span style="font-weight:400;margin-right:6px">See plans &amp; issue locations</span>📍 Plans &amp; Pins ↓</a>
+      <div class="card-hdr" style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+        <span>Site Visit Summary <span style="font-weight:400;opacity:.75;font-size:11px">(Observations Summary)</span></span>
+        <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+          <button onclick="copyPrompt('obs')" title="Copy the AI prompt used to draft this section in Claude" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:white;padding:5px 12px;border-radius:16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">🤖 Copy AI Prompt</button>
+          <a href="#plans-pins-section" style="font-size:11px;font-weight:700;color:white;text-decoration:none;opacity:.85;white-space:nowrap" title="Jump to Plans & Location Pins"><span style="font-weight:400;margin-right:6px">See plans &amp; issue locations</span>📍 Plans &amp; Pins ↓</a>
+        </div>
       </div>
       <div class="card-body">
         <textarea id="ta-gen" rows="4" placeholder="General site observations…"></textarea>
@@ -512,11 +520,14 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
       <div class="card-hdr">
         <div class="conc-hdr-inner">
           <span class="conc-text">Conclusion &amp; Recommended Actions</span>
-          <label class="conc-remove-label" title="Remove from report">
-            <input type="checkbox" id="conc-toggle" onchange="toggleConc()">
-            <span class="conc-x-icon"></span>
-            <span style="color:rgba(255,255,255,.85)">Remove</span>
-          </label>
+          <div style="display:flex;align-items:center;gap:10px;margin-left:auto;flex-shrink:0">
+            <button onclick="copyPrompt('conc')" title="Copy the AI prompt used to draft this section in Claude" style="background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);color:white;padding:5px 12px;border-radius:16px;font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;white-space:nowrap;display:flex;align-items:center;gap:5px">🤖 Copy AI Prompt</button>
+            <label class="conc-remove-label" title="Remove from report">
+              <input type="checkbox" id="conc-toggle" onchange="toggleConc()">
+              <span class="conc-x-icon"></span>
+              <span style="color:rgba(255,255,255,.85)">Remove</span>
+            </label>
+          </div>
         </div>
       </div>
       <div class="card-body" id="conc-body">
@@ -626,6 +637,11 @@ textarea:focus{outline:none;border-color:var(--clw-blue);box-shadow:0 0 0 3px rg
 <div class="toast" id="toast"></div>
 <div class="lightbox" id="lightbox" style="display:none">
   <span class="lightbox-close" onclick="closeLightbox()">✕</span>
+  <div class="lightbox-toolbar" id="lightbox-toolbar">
+    <button class="lb-rotate" onclick="lbRotateCCW()" title="Rotate anticlockwise">⟲</button>
+    <button class="lb-rotate" onclick="lbRotateCW()" title="Rotate clockwise">⟳</button>
+    <button class="lb-rotate lb-rotate-180" onclick="lbRotate180()" title="Rotate 180°">180°</button>
+  </div>
   <button class="lb-arrow lb-prev" id="lb-prev" onclick="lbPrev()" title="Previous (←)">&#8249;</button>
   <div class="lightbox-img-wrap" id="lightbox-wrap">
     <img id="lightbox-img" src="" alt="" draggable="false">
@@ -34033,6 +34049,43 @@ async function renderVisits(projectId){
   }).join('');
 }
 
+// ── Standard section text / AI prompts ──────────────────────
+function STANDARD_INTRO_TEXT(projectName){
+  const proj=projectName&&projectName.trim()?projectName.trim():'[Project]';
+  return `${proj} is located in [town/area]. The site is bounded by [boundary roads/features], with access to building off [access road].
+This report focuses solely on [area(s) inspected, e.g. basement car park] and provides an overview of the current [condition/progress] to these areas. During our survey we inspected all accessible spaces of the basement as well as [describe any additional areas walked/inspected, e.g. podium]. There were however some areas that were not accessible, including [add locations of areas not accessible and reasons].
+The survey undertaken was purely visual, no intrusive investigations, opening up works or verification of the structural integrity have been undertaken.
+Observations represent conditions present on the day of inspection only. Basement waterproofing performance can vary subject to groundwater levels, rainfall intensity, and drainage conditions. Current conditions are not necessarily an indication of future performance.
+Weather on the day of the survey was [weather conditions], our visit was preceded by [antecedent weather conditions, e.g. heavy rainfall in the previous 24 hours / a dry spell].
+Attendees: [name(s)]`;
+}
+const OBS_SUMMARY_PROMPT=`You are reviewing a CLW site visit report for a basement/structural waterproofing project. Read the full report and produce a short draft summary for the author to check and edit before issue.
+Structure your response as:
+1. Key Issues — 3–6 bullet points on the most significant findings (defects, ingress, dampness, poor workmanship, incomplete or missing waterproofing details), noting location/area where stated.
+2. NCRs / Non-Conformances — flag anything that reads as a non-conformance against BS 8102:2022 or the specified system (Type A/B/C, cavity drain membrane, cementitious, waterproof concrete, joints, drainage, pumps), even if the report doesn't use the word "NCR".
+3. Action Items Flag — one line only: state whether the findings imply follow-up actions are needed (yes/no) and roughly how many. Do not list the actions themselves — these are detailed in the Conclusion section.
+Only summarise what the report actually states — don't infer severity, cause, or compliance status beyond what's written. If a section is blank or unclear, say so rather than guessing. Keep it concise, plain English, client-appropriate. This is a draft for the author to edit, not a final report.`;
+const CONCLUSION_PROMPT=`You are drafting the Conclusion & Recommended Actions section of a CLW site visit report for a basement/structural waterproofing project. Read the full report and produce a short draft for the author to check and edit before issue.
+Structure your response as:
+1. Overall Summary — 2–4 sentences giving an overall assessment of the visit: general progress/condition, and whether works appear consistent with the specified system (Type A/B/C, cavity drain membrane, cementitious, waterproof concrete, joints, drainage, pumps), based only on what the report states.
+2. Recommended Actions — the definitive numbered list of actions arising from the findings, each with: what needs to be done, where (area/location), and who is responsible, if stated. Order by priority if priority or urgency is indicated in the findings.
+3. Follow-Up — note anything requiring re-inspection, close-out confirmation, or further information before it can be resolved, and any items still open from a previous visit if referenced in the report.
+Base this only on what is actually written in the report — do not claim compliance, assign blame, or state a system is satisfactory/unsatisfactory unless the report supports it. Where responsibility or timescale isn't stated, say "not specified" rather than guessing. Keep it concise, plain English, and suitable to issue to clients, contractors, architects and engineers. This is a draft for the author to review and edit, not a final conclusion.`;
+function copyPrompt(which){
+  const text=which==='obs'?OBS_SUMMARY_PROMPT:CONCLUSION_PROMPT;
+  const full='Load your generated report (Generate Report) into Claude, then use this prompt:\n\n'+text;
+  const done=()=>toast('✓ Prompt copied — paste into Claude');
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(full).then(done).catch(()=>_fallbackCopyPrompt(full,done));
+  }else{_fallbackCopyPrompt(full,done);}
+}
+function _fallbackCopyPrompt(text,done){
+  const ta=document.createElement('textarea');ta.value=text;ta.style.position='fixed';ta.style.left='-9999px';
+  document.body.appendChild(ta);ta.select();
+  try{document.execCommand('copy');done();}catch(e){toast('Could not copy prompt');}
+  document.body.removeChild(ta);
+}
+
 async function newVisit(){
   const proj=await dbGet('projects',currentProjectId);
   const existing=await dbGetByIndex('visits','projectId',currentProjectId);
@@ -34042,7 +34095,7 @@ async function newVisit(){
     iseq:0,pseq:0,planSeq:0,pnseq:0,issues:[],plans:[],pins:[],
     f:{subj:'CMT Site Visit',cli:proj?.client||'',clwr:proj?.clwRef||'',cref:proj?.name||'',
        ref:`PR-${String(n).padStart(3,'0')}`,date:new Date().toISOString().slice(0,10),
-       wx:'',prep:'',appr:'',att:'',sum:'',gen:'',conc:''},
+       wx:'',prep:'',appr:'',att:'',sum:STANDARD_INTRO_TEXT(proj?.name),gen:'',conc:''},
     updatedAt:Date.now()
   };
   const id=await dbPut('visits',v);await openVisit(id);
@@ -34074,7 +34127,9 @@ async function openVisit(id){
   if(crefSel){crefSel.innerHTML=allProjects.map(p=>`<option value="${p.id}"${p.id===visit.projectId?' selected':''}>${e(p.name)}</option>`).join('');}
   sv('f-cli',proj?.client||'');sv('f-clwr',proj?.clwRef||'');
   sv('f-ref',F.ref);sv('f-date',F.date);sv('f-wx',F.wx);sv('f-prep',F.prep);
-  sv('f-appr',F.appr);sv('f-att',F.att);sv('ta-sum',F.sum);sv('ta-gen',F.gen);sv('ta-conc',F.conc);
+  sv('f-appr',F.appr);sv('f-att',F.att);
+  sv('ta-sum',(F.sum&&F.sum.trim())?F.sum:STANDARD_INTRO_TEXT(proj?.name));
+  sv('ta-gen',F.gen);sv('ta-conc',F.conc);
   const cb=document.getElementById('conc-toggle');
   if(cb){cb.checked=!visit.concIncluded;toggleConc();}
   const autoTitle=(proj?.name||'Project')+' — '+(fmtD(F.date)||'New Visit');
@@ -34136,16 +34191,22 @@ async function reassignVisitProject(newProjectIdStr){
   if(!newProjectId||!currentVisitId)return;
   const visit=await dbGet('visits',currentVisitId);
   if(!visit)return;
+  const oldProj=await dbGet('projects',visit.projectId);
   await dbPut('visits',{...visit,projectId:newProjectId,updatedAt:Date.now()});
   currentProjectId=newProjectId;
   const proj=await dbGet('projects',newProjectId);
   sv('f-cli',proj?.client||'');
   sv('f-clwr',proj?.clwRef||'');
+  // If the Introduction still matches the unedited standard text, refresh the project name in it
+  const taSum=document.getElementById('ta-sum');
+  if(taSum&&taSum.value.trim()===STANDARD_INTRO_TEXT(oldProj?.name).trim()){
+    taSum.value=STANDARD_INTRO_TEXT(proj?.name);
+  }
   // Update page title to reflect new project
   const F=visit.f||{};
   const autoTitle=(proj?.name||'Project')+' — '+(fmtD(F.date)||'New Visit');
   document.getElementById('visit-hdr-title').textContent=visit.visitTitle||autoTitle;
-  showToast('Visit moved to: '+(proj?.name||'project'));
+  toast('Visit moved to: '+(proj?.name||'project'));
 }
 async function _deleteVisitData(id){
   const visit=await dbGet('visits',id);
@@ -34474,11 +34535,22 @@ function openIssueLightbox(issId,startIdx){
   const iss=issues.find(i=>i.id===issId);if(!iss)return;
   const pp=pins.filter(p=>p.issueId===iss.id&&p.type==='photo'&&p.photos?.some(ph=>ph.du));
   const pinnedIds=new Set(pins.filter(p=>p.sourcePhotoId!=null&&iss.photos.some(ph=>ph.id===p.sourcePhotoId)).map(p=>p.sourcePhotoId));
-  const srcs=[
-    ...iss.photos.filter(ph=>!pinnedIds.has(ph.id)).map(ph=>ph.du),
-    ...pp.flatMap(pin=>(pin.photos||[]).filter(ph=>ph.du).map(ph=>ph.du))
+  const items=[
+    ...iss.photos.filter(ph=>!pinnedIds.has(ph.id)).map(ph=>({src:ph.du,ref:{type:'issue',issueId:iss.id,photoId:ph.id}})),
+    ...pp.flatMap(pin=>{
+      const phs=(pin.photos||[]).filter(ph=>ph.du);
+      return phs.map((ph,idx)=>({src:ph.du,ref:{type:'pin',pinId:pin.id,idx}}));
+    })
   ];
-  openLightbox(srcs,startIdx||0);
+  openLightbox(items,startIdx||0);
+}
+
+// Opens the lightbox for a single pin-gallery photo (used by the pin edit panel)
+function openPinPhotoLightbox(pinId,idx){
+  const pin=pins.find(p=>p.id===pinId);if(!pin)return;
+  const phs=(pin.photos||[]).filter(ph=>ph.du);
+  const ph=phs[idx];if(!ph)return;
+  openLightbox([{src:ph.du,ref:{type:'pin',pinId,idx}}],0);
 }
 
 // ── Photo processing: fix EXIF orientation + compress on ingest ──────────────
@@ -34586,15 +34658,25 @@ function _tsTag(ts){return ts?`<span style="display:inline-block;background:#e8f
 function addFsCamera(iid,files){
   const iss=issues.find(i=>i.id===iid);if(!iss||!files)return;
   Array.from(files).forEach(f=>{
-    const rd=new FileReader();
-    rd.onload=ev=>{
+    processPhoto(f).then(du=>{
       const im=new Image();
       im.onload=()=>{
-        let tp=f.type.split('/')[1];if(tp==='jpg')tp='jpeg';
-        iss.photos.push({id:++pseq,du:ev.target.result,tp,cap:'',wp:70,nW:im.naturalWidth,nH:im.naturalHeight,ts:Date.now()});
+        iss.photos.push({id:++pseq,du,tp:'jpeg',cap:'',wp:70,nW:im.naturalWidth,nH:im.naturalHeight,ts:Date.now()});
+        document.getElementById('pg'+iid)?.replaceWith(createNode(rPhotos(iss)));
         renderAll();saveSt();
-      };im.src=ev.target.result;
-    };rd.readAsDataURL(f);
+      };im.src=du;
+    }).catch(()=>{
+      // fallback: read as-is if processPhoto fails (EXIF orientation may be wrong in this case)
+      const rd=new FileReader();
+      rd.onload=ev=>{
+        const im=new Image();
+        im.onload=()=>{
+          let tp=f.type.split('/')[1];if(tp==='jpg')tp='jpeg';
+          iss.photos.push({id:++pseq,du:ev.target.result,tp,cap:'',wp:70,nW:im.naturalWidth,nH:im.naturalHeight,ts:Date.now()});
+          renderAll();saveSt();
+        };im.src=ev.target.result;
+      };rd.readAsDataURL(f);
+    });
   });
 }
 function ph_c(iid,pid,v){const iss=issues.find(i=>i.id===iid);if(iss){const ph=iss.photos.find(p=>p.id===pid);if(ph)ph.cap=v;}saveSt();}
@@ -35390,7 +35472,7 @@ function _refreshPinGallery(pin){
   gal.innerHTML=phs.map((ph,pi)=>{
     const alpha=phs.length>1?String.fromCharCode(65+pi):'';
     return`<div class="ppg-item">
-      <img src="${ph.du}" alt="" onclick="openLightbox(this.src)">
+      <img src="${ph.du}" alt="" onclick="openPinPhotoLightbox(${pin.id},${pi})">
       <div class="ppg-lbl">P${pinNum}${alpha}</div>
       <button class="ppg-rm" onclick="delPinPhoto(${pin.id},${pi});_refreshPinGallery(pins.find(p=>p.id===${pin.id}))" title="Remove this photo">✕</button>
     </div>`;
@@ -35969,7 +36051,7 @@ async function _gen(){
   const bB={style:BorderStyle.SINGLE,size:6,color:BLUE};
   const noB={top:bN,bottom:bN,left:bN,right:bN};
   const sp=(b=0,a=0)=>({spacing:{before:b,after:a}});
-  const secHd=(txt)=>[new Paragraph({children:[new TextRun({text:txt,font:'Mulish',bold:true,size:40,color:BLUE})],border:{bottom:bB},...sp(360,160)})];
+  const secHd=(txt,pageBreak=false)=>[new Paragraph({children:[new TextRun({text:txt,font:'Mulish',bold:true,size:40,color:BLUE})],border:{bottom:bB},pageBreakBefore:pageBreak,...sp(360,160)})];
   const subHd=(txt)=>new Paragraph({children:[new TextRun({text:txt,font:'Mulish',bold:true,size:24,color:DARK})],...sp(200,80)});
   const bLines=(txt,bold=false)=>{
     if(!txt||!txt.trim())return[];
@@ -36001,8 +36083,8 @@ async function _gen(){
   children.push(new Table({width:{size:CDXA,type:WidthType.DXA},columnWidths:COL,rows,borders:{top:bN,bottom:bN,left:bN,right:bN,insideH:bN,insideV:bN}}));
   children.push(new Paragraph({children:[],...sp(240,0)}));
 
-  // Introduction & Summary
-  children.push(...secHd('Introduction & Summary'));
+  // Introduction
+  children.push(...secHd('Introduction'));
   children.push(...bLines('Conditions are representative of what we\'ve seen on the day. Current conditions are not necessarily an indication of future performance.'));
   if(F.sum&&F.sum.trim())children.push(new Paragraph({children:[],...sp(80,0)}));
   children.push(...bLines(F.sum));
@@ -36013,7 +36095,7 @@ async function _gen(){
 
   // Site Findings
   children.push(...secHd('Site Findings'));
-  children.push(subHd('General Observations'));
+  children.push(subHd('Site Visit Summary'));
   children.push(...bLines(F.gen));
 
   // Issues — merge drag-drop photos + pinned photos
@@ -36139,7 +36221,7 @@ async function _gen(){
   // ── Annotated Plans section ──
   const plansWithPins=plans.filter(plan=>pins.some(p=>p.planId===plan.id));
   if(plansWithPins.length){
-    children.push(...secHd('Annotated Plans'));
+    children.push(...secHd('Annotated Plans',true));
     // Load plan images from IDB and render each
     const planRecs=await idbGetAll();
     const recMap={};planRecs.forEach(r=>{recMap[r.id]=r;});
@@ -36580,7 +36662,8 @@ async function downloadAllPhotos() {
     const img=lbImg();
     if(!img)return;
     resetTransform();
-    img.src=_imgs[idx]||'';
+    const item=_imgs[idx];
+    img.src=item?item.src:'';
     const ctr=lbCtr();
     if(ctr){
       if(_imgs.length>1){ctr.style.display='';ctr.textContent=`${idx+1} / ${_imgs.length}`;}
@@ -36589,11 +36672,21 @@ async function downloadAllPhotos() {
     const pp=lbPrevBtn(), np=lbNextBtn();
     if(pp)pp.style.display=_imgs.length>1?'':'none';
     if(np)np.style.display=_imgs.length>1?'':'none';
+    // Rotate controls only make sense when we know where this photo lives (issue/pin)
+    document.querySelectorAll('.lb-rotate').forEach(b=>{b.style.display=(item&&item.ref)?'':'none';});
+  }
+
+  // Normalises each entry to {src, ref}. Accepts plain src strings (ref=null, e.g.
+  // legacy callers) or {src,ref} objects produced by openIssueLightbox / openPinPhotoLightbox.
+  function _normItem(v){
+    if(!v)return null;
+    if(typeof v==='string')return{src:v,ref:null};
+    return{src:v.src,ref:v.ref||null};
   }
 
   window.openLightbox=function(srcsOrSrc, startIdx){
-    if(Array.isArray(srcsOrSrc)){_imgs=srcsOrSrc.filter(Boolean);}
-    else{_imgs=[srcsOrSrc].filter(Boolean);}
+    if(Array.isArray(srcsOrSrc)){_imgs=srcsOrSrc.map(_normItem).filter(it=>it&&it.src);}
+    else{const it=_normItem(srcsOrSrc);_imgs=it?[it]:[];}
     _cur=Math.max(0,Math.min(startIdx||0,_imgs.length-1));
     if(!_imgs.length)return;
     const el=lb();if(!el)return;
@@ -36623,6 +36716,65 @@ async function downloadAllPhotos() {
     loadImage(_cur);
   };
 
+  // Rotates the JPEG pixel data itself (not just a CSS transform) so the corrected
+  // orientation persists into the saved photo, thumbnails and report output.
+  function _rotatePhotoData(src,degrees){
+    return new Promise((resolve,reject)=>{
+      const img=new Image();
+      img.onload=function(){
+        const w=img.naturalWidth,h=img.naturalHeight;
+        const swapped=Math.abs(degrees)===90;
+        const c=document.createElement('canvas');
+        c.width=swapped?h:w; c.height=swapped?w:h;
+        const ctx=c.getContext('2d');
+        ctx.translate(c.width/2,c.height/2);
+        ctx.rotate(degrees*Math.PI/180);
+        ctx.drawImage(img,-w/2,-h/2);
+        resolve({du:c.toDataURL('image/jpeg',0.9),nW:c.width,nH:c.height});
+      };
+      img.onerror=reject;
+      img.src=src;
+    });
+  }
+
+  async function _rotateCurrent(degrees){
+    const item=_imgs[_cur];
+    if(!item||!item.ref){if(typeof toast==='function')toast('Cannot rotate this photo');return;}
+    const btns=document.querySelectorAll('.lb-rotate');
+    btns.forEach(b=>b.disabled=true);
+    try{
+      const {du,nW,nH}=await _rotatePhotoData(item.src,degrees);
+      const ref=item.ref;
+      let touchedPin=null;
+      if(ref.type==='issue'){
+        const iss=(typeof issues!=='undefined')?issues.find(i=>i.id===ref.issueId):null;
+        const ph=iss?iss.photos.find(p=>p.id===ref.photoId):null;
+        if(ph){ph.du=du;ph.nW=nW;ph.nH=nH;}
+      } else if(ref.type==='pin'){
+        const pin=(typeof pins!=='undefined')?pins.find(p=>p.id===ref.pinId):null;
+        const phs=pin?(pin.photos||[]).filter(p=>p.du):[];
+        const ph=phs[ref.idx];
+        if(ph){ph.du=du;ph.nW=nW;ph.nH=nH;touchedPin=pin;}
+      }
+      item.src=du;
+      resetTransform();
+      lbImg().src=du;
+      if(typeof saveSt==='function')saveSt();
+      if(typeof renderAll==='function')renderAll();
+      if(typeof _drawPlan==='function')_drawPlan();
+      if(typeof renderInlinePlan==='function')renderInlinePlan();
+      if(touchedPin&&typeof _editingPinId!=='undefined'&&_editingPinId===touchedPin.id&&typeof _refreshPinGallery==='function')_refreshPinGallery(touchedPin);
+    }catch(err){
+      if(typeof toast==='function')toast('Could not rotate photo');
+    }finally{
+      btns.forEach(b=>b.disabled=false);
+    }
+  }
+
+  window.lbRotateCW=function(){_rotateCurrent(90);};
+  window.lbRotateCCW=function(){_rotateCurrent(-90);};
+  window.lbRotate180=function(){_rotateCurrent(180);};
+
   // Keyboard navigation
   document.addEventListener('keydown',function(e){
     const el=lb();if(!el||el.style.display==='none')return;
@@ -36644,7 +36796,7 @@ async function downloadAllPhotos() {
   document.addEventListener('mousedown',function(e){
     const el=lb();if(!el||el.style.display==='none')return;
     const tgt=e.target;
-    if(tgt.classList.contains('lightbox-close')||tgt.classList.contains('lb-arrow'))return;
+    if(tgt.classList.contains('lightbox-close')||tgt.classList.contains('lb-arrow')||tgt.classList.contains('lb-rotate'))return;
     _dragging=true;_dragStartX=e.clientX;_dragStartY=e.clientY;_baseTx=_tx;_baseTy=_ty;
   });
   document.addEventListener('mousemove',function(e){
@@ -36712,6 +36864,34 @@ async function downloadAllPhotos() {
 // ── Drive browser UI ─────────────────────────────────────
 let _driveVisits = []; // holds fetched visit metadata so onclick can reference by index
 
+// ── Local cache of the last known visit list (per device) ─────────────
+// Lets the picker show something the instant it opens instead of a blank
+// "fetching" state, then quietly refreshes from Drive in the background.
+const CLW_DRIVE_CACHE_KEY = 'clw_drive_visit_cache_v1';
+
+function clwDriveCacheGet() {
+  try {
+    const raw = localStorage.getItem(CLW_DRIVE_CACHE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch(err) { return null; }
+}
+
+function clwDriveCacheSet(visits) {
+  try {
+    localStorage.setItem(CLW_DRIVE_CACHE_KEY, JSON.stringify({ visits: visits, cachedAt: Date.now() }));
+  } catch(err) { /* localStorage unavailable/full — caching is a nice-to-have, not required */ }
+}
+
+function clwDriveCacheAgeLabel(ts) {
+  const mins = Math.max(0, Math.round((Date.now() - ts) / 60000));
+  if (mins < 1)  return 'just now';
+  if (mins < 60) return mins + ' min ago';
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24)  return hrs + ' hr' + (hrs !== 1 ? 's' : '') + ' ago';
+  const days = Math.round(hrs / 24);
+  return days + ' day' + (days !== 1 ? 's' : '') + ' ago';
+}
+
 function clwOpenDriveBrowser() {
   if (!CLW_GOOGLE.SCRIPT_URL) {
     toast('Google Drive not configured — complete the Setup Guide first.', 5000);
@@ -36719,10 +36899,21 @@ function clwOpenDriveBrowser() {
   }
   document.getElementById('modal-drive').classList.remove('hide');
   document.getElementById('modal-drive-backdrop').classList.remove('hide');
-  // Reset state
-  document.getElementById('drive-browser-status').innerHTML =
-    '<button class="btn-primary" onclick="clwFetchDriveList()" style="font-size:13px;padding:10px 22px">Fetch visits from Drive</button>';
-  document.getElementById('drive-visit-list').innerHTML = '';
+
+  const statusEl = document.getElementById('drive-browser-status');
+  const cached   = clwDriveCacheGet();
+
+  if (cached && cached.visits && cached.visits.length) {
+    // Show the last known list immediately — don't make the user wait on the network to see anything
+    clwRenderDriveVisits(cached.visits);
+    statusEl.innerHTML = '<span style="color:var(--clw-mid);font-size:11px">⏳ Checking Drive for updates… (showing list from ' + clwDriveCacheAgeLabel(cached.cachedAt) + ')</span>';
+  } else {
+    document.getElementById('drive-visit-list').innerHTML = '';
+    statusEl.innerHTML = '<span style="color:var(--clw-mid)">⏳ Fetching from Drive…</span>';
+  }
+
+  // Always refresh from Drive in the background so the list is never stale for long
+  clwFetchDriveList();
 }
 
 function clwCloseDriveBrowser() {
@@ -36730,12 +36921,11 @@ function clwCloseDriveBrowser() {
   document.getElementById('modal-drive-backdrop').classList.add('hide');
 }
 
-// ── Fetch list of available visits from Drive ────────────
+// ── Fetch list of available visits from Drive (runs silently in the
+//    background on open; falls back to the cached list if it fails) ────
 async function clwFetchDriveList() {
   const statusEl = document.getElementById('drive-browser-status');
-  const listEl   = document.getElementById('drive-visit-list');
-  statusEl.innerHTML = '<span style="color:var(--clw-mid)">⏳ Fetching from Drive…</span>';
-  listEl.innerHTML = '';
+  const cached   = clwDriveCacheGet();
 
   const folder = encodeURIComponent(CLW_GOOGLE.FOLDER_ID || '');
   const url = CLW_GOOGLE.SCRIPT_URL + '?action=listVisits&folder=' + folder;
@@ -36746,22 +36936,39 @@ async function clwFetchDriveList() {
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     data = await resp.json();
   } catch(err) {
-    statusEl.innerHTML = '<span style="color:#c00;font-size:13px">⚠ Could not reach Drive. Check your internet connection and that your Apps Script is updated (see Setup Guide).</span>';
+    if (cached && cached.visits && cached.visits.length) {
+      statusEl.innerHTML = '<span style="color:var(--clw-mid);font-size:11px">⚠ Could not refresh — showing list from ' + clwDriveCacheAgeLabel(cached.cachedAt) + '. <a href="#" onclick="clwFetchDriveList();return false" style="color:var(--clw-blue)">Retry</a></span>';
+    } else {
+      statusEl.innerHTML = '<span style="color:#c00;font-size:13px">⚠ Could not reach Drive. Check your internet connection and that your Apps Script is updated (see Setup Guide). <a href="#" onclick="clwFetchDriveList();return false" style="color:#c00;text-decoration:underline">Retry</a></span>';
+    }
     return;
   }
 
   if (data.error) {
-    statusEl.innerHTML = '<span style="color:#c00;font-size:13px">⚠ ' + e(data.error) + '</span>';
+    if (cached && cached.visits && cached.visits.length) {
+      statusEl.innerHTML = '<span style="color:var(--clw-mid);font-size:11px">⚠ ' + e(data.error) + ' — showing list from ' + clwDriveCacheAgeLabel(cached.cachedAt) + '.</span>';
+    } else {
+      statusEl.innerHTML = '<span style="color:#c00;font-size:13px">⚠ ' + e(data.error) + '</span>';
+    }
     return;
   }
 
   const visits = data.visits || [];
+  clwDriveCacheSet(visits);
+
   if (!visits.length) {
+    document.getElementById('drive-visit-list').innerHTML = '';
     statusEl.innerHTML = '<span style="color:var(--clw-mid);font-size:13px">No synced visits found in Drive.</span>';
     return;
   }
 
-  statusEl.innerHTML = '<span style="color:var(--clw-mid);font-size:12px">' + visits.length + ' visit' + (visits.length!==1?'s':'') + ' found</span>';
+  statusEl.innerHTML = '<span style="color:var(--clw-mid);font-size:12px">' + visits.length + ' visit' + (visits.length!==1?'s':'') + ' found · <a href="#" onclick="clwFetchDriveList();return false" style="color:var(--clw-blue)">Refresh</a></span>';
+  clwRenderDriveVisits(visits);
+}
+
+// ── Render the (grouped-by-project) visit list into the picker ─────────
+function clwRenderDriveVisits(visits) {
+  const listEl = document.getElementById('drive-visit-list');
 
   // Store visits globally so onclick handlers can reference by index safely
   _driveVisits = visits;
@@ -36864,4 +37071,18 @@ async function clwImportVisit(meta, btn) {
   // 5. Count photos to display in upload modal
   const totalPhotos = (cleanVisit.plans || []).length
     + (cleanVisit.pins  || []).reduce((s,p)=>s+(p.type==='photo'?(p.photos||[]).length:0),0)
- 
+    + (cleanVisit.issues|| []).reduce((s, iss) => s + (iss.photos||[]).length, 0);
+
+  btn.disabled = false;
+  btn.textContent = '✓ Done';
+  clwCloseDriveBrowser();
+
+  // 6. Show photo upload modal (skip straight to project if visit has no photos)
+  if (totalPhotos > 0) {
+    clwOpenPhotoUpload(newVisitId, project.id, totalPhotos);
+  } else {
+    await openProject(project.id);
+  }
+}
+
+// ── Re-fetch photos from Drive a
